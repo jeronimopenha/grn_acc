@@ -518,47 +518,13 @@ class GrnComponents:
         self.cache[name] = m
         return m
 
-    def create_grn_maem_core(self, grn_content, default_bus_width=32):
+    def create_grn_mem_core(self, grn_content, default_bus_width=32):
+        grn_mem_spec = grn_content.get_grn_mem_specifications()
+
         name = 'grn_mem_core'
         if name in self.cache.keys():
             return self.cache[name]
         m = Module(name)
-
-        nodes = grn_content.get_nodes_vector()
-        equations = grn_content.get_equations_dict()
-
-        for i in range(len(nodes)):
-            nodes[i] = [nodes[i], i]
-        for key in equations:
-            eq = equations[key]
-            for n in nodes:
-                if n[]:
-
-        # Here are the GRN equations to be used in the core execution are created
-        m.EmbeddedCode("\n// Here are the GRN equations to be used in the core execution are created")
-        nodes_assign_dict = {}
-        nodes_assign_dict_counter = 0
-        assign_string = ""
-        for node in equations:
-            equations[node] = equations[node].replace('||', ' || ')
-            equations[node] = equations[node].replace('&&', ' && ')
-            equations[node] = equations[node].replace('~', ' ~')
-            for n in nodes:
-                if not n in nodes_assign_dict:
-                    nodes_assign_dict[n] = str(nodes_assign_dict_counter)
-                    nodes_assign_dict_counter = nodes_assign_dict_counter + 1
-                if n in equations[node]:
-                    equations[node] = equations[node].replace(n, 'actual_state_s1[' + nodes_assign_dict[n] + ']')
-            assign_string = assign_string + "assign next_state_s1[" + nodes_assign_dict[node] + "] = " + equations[
-                node] + ";\n"
-
-        # For S1 pointer
-        m.EmbeddedCode("// For S1 pointer")
-        m.EmbeddedCode(assign_string)
-        m.EmbeddedCode("// For S2 pointer")
-        assign_string = assign_string.replace("actual_state_s1", "actual_state_s2")
-        assign_string = assign_string.replace("next_state_s1", "next_state_s2")
-        m.EmbeddedCode(assign_string)
 
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
@@ -567,52 +533,71 @@ class GrnComponents:
         # Basic Input - End -------------------------------------------------------------------------------------------
 
         # Configuration inputs - Begin --------------------------------------------------------------------------------
-        # The grn core naive configuration consists in two buses with the initial state and the final state to be
-        # searched
-        initial_state = m.Input('initial_state', len(nodes))
-        final_state = m.Input('final_state', len(nodes))
-        equations = m.Input('equations')
+        # The grn mem core configuration consists in two buses with the initial state and the final state to be
+        # searched and the content of a 1 bit memory for each equation
+        initial_state = m.Input('initial_state', grn_content.get_num_nodes())
+        final_state = m.Input('final_state', grn_content.get_num_nodes())
+        eq_bits = 0
+        for g in grn_mem_spec:
+            eq_bits = eq_bits + len(g[2])
+        equations_config = m.Input('equations_config', eq_bits)
         # Configuration Inputs - End ----------------------------------------------------------------------------------
 
         # Output data Control interface - Begin -----------------------------------------------------------------------
-        # The naive kernel output data is the FIFO data output that contains all the data found
+        # The mem kernel output data is the FIFO data output that contains all the data found
         output_read_enable = m.Input('output_read_enable')
         output_valid = m.Output('output_valid')
         output_data = m.Output('output_data', default_bus_width)
         output_available = m.Output('output_available')
         # Output data Control interface - End -------------------------------------------------------------------------
         m.EmbeddedCode(
-            "// The grn core naive configuration consists in two buses with the initial state and the final ")
-        m.EmbeddedCode("// state to be searched.")
-        m.EmbeddedCode("//The naive kernel output data is the FIFO data output that contains all the data found.\n")
+            "// The grn mem core configuration consists in two buses with the initial state and the final state to be")
+        m.EmbeddedCode("// searched and the content of a 1 bit memory for each equation.")
+        m.EmbeddedCode("// The mem kernel output data is the FIFO data output that contains all the data found.")
 
         # Fifo wires and regs
-        m.EmbeddedCode("//Fifo wires and regs")
+        m.EmbeddedCode("\n//Fifo wires and regs")
         fifo_write_enable = m.Reg('fifo_write_enable')
         fifo_input_data = m.Reg('fifo_input_data', default_bus_width)
         fifo_full = m.Wire('fifo_full')
         fifo_empty = m.Wire('fifo_empty')
 
-        # Wires and regs to be used in control and execution of the grn naive
-        m.EmbeddedCode("\n// Wires and regs to be used in control and execution of the grn naive")
-        actual_state_s1 = m.Reg('actual_state_s1', len(nodes))
-        next_state_s1 = m.Wire('next_state_s1', len(nodes))
-        actual_state_s2 = m.Reg('actual_state_s2', len(nodes))
-        next_state_s2 = m.Wire('next_state_s2', len(nodes))
-        exec_state = m.Reg('exec_state', len(nodes))
+        # Wires and regs to be used in control and execution of the grn mem
+        m.EmbeddedCode("\n// Wires and regs to be used in control and execution of the grn mem")
+        actual_state_s1 = m.Reg('actual_state_s1', grn_content.get_num_nodes())
+        next_state_s1 = m.Wire('next_state_s1', grn_content.get_num_nodes())
+        actual_state_s2 = m.Reg('actual_state_s2', grn_content.get_num_nodes())
+        next_state_s2 = m.Wire('next_state_s2', grn_content.get_num_nodes())
+        exec_state = m.Reg('exec_state', grn_content.get_num_nodes())
         flag_pulse = m.Reg('flag_pulse')
         flag_first_it = m.Reg('flag_first_it')
         transient_counter = m.Reg('transient_counter', 32)
         period_counter = m.Reg('period_counter', 32)
-        bits = (len(nodes) * 2) + 32 + 32
+        bits = (grn_content.get_num_nodes() * 2) + 32 + 32
         data_write_width = ceil(bits / 32) * 32
         qty_data = data_write_width / 32
         data_to_write = m.Reg('data_to_write', data_write_width)
         write_counter = m.Reg('write_counter', ceil(log2(data_write_width / 32)))
-        m.EmbeddedCode("")
+
+        # Here are the GRN eq_wires to be used in the core execution are created
+        m.EmbeddedCode("\n// Here are the GRN eq_wires to be used in the core execution are created")
+
+
+        eq_wires = []
+        for node in grn_content.get_nodes_vector():
+            for g in grn_mem_spec:
+                if g[0] == node:
+                    eq_wires.append(m.Wire("eq_" + node, len(g[2])))
+                    break
+        # assign each bus in the correct place of configuration memory
+        last_idx = 0
+        for eq in eq_wires:
+            eq.assign(equations_config[last_idx:last_idx + eq.width])
+            last_idx = last_idx + eq.width
+
 
         # State machine to control the grn algorithm execution
-        m.EmbeddedCode("//State machine to control the grn algorithm execution")
+        m.EmbeddedCode("\n// State machine to control the grn algorithm execution")
         fsm_naive = m.Reg('fsm_naive', 3)
         fsm_naive_set = m.Localparam('fsm_naive_set', 0)
         fsm_naive_init = m.Localparam('fsm_naive_init', 1)
@@ -703,8 +688,20 @@ class GrnComponents:
             )
         )
 
+
+        # Assigns to define each bit is used on each equation memory
+        m.EmbeddedCode("\n// Assigns to define each bit is used on each equation memory")
+        for i in range(next_state_s1.width):
+            assign_string = 'assign ' + next_state_s1.name + '[' + str(i) + '] = ' + eq_wires[i].name + '[{'
+            for idx in grn_mem_spec[i][2]:
+                assign_string = assign_string + 'actual_state_s1[' + str(idx) + '],'
+            assign_string = assign_string[0:(len(assign_string) - 1)]
+            assign_string = assign_string + '}]'
+            m.EmbeddedCode(assign_string)
+            m.EmbeddedCode(assign_string.replace('_s1', '_s2'))
+
         # Output data fifo instantiation
-        m.EmbeddedCode("//Output data fifo instantiation")
+        m.EmbeddedCode("\n//Output data fifo instantiation")
 
         output_available.assign(~fifo_empty)
 
@@ -1046,4 +1043,4 @@ class GrnComponents:
 
 grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_5.txt")
 grn = GrnComponents()
-grn.create_grn_maem_core(grn_content)
+grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_core.v")

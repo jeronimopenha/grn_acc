@@ -283,15 +283,19 @@ class GrnComponents:
         for node in equations:
             equations[node] = equations[node].replace('||', ' || ')
             equations[node] = equations[node].replace('&&', ' && ')
-            equations[node] = equations[node].replace('~', ' ~')
+            equations[node] = equations[node].replace('!', ' ! ')
+            equations[node] = equations[node].replace('(', ' ( ')
+            equations[node] = equations[node].replace(')', ' ) ')
+            equations[node] = " " + equations[node] + " "
             for n in nodes:
+                n = " " + n + " "
                 if not n in nodes_assign_dict:
                     nodes_assign_dict[n] = str(nodes_assign_dict_counter)
                     nodes_assign_dict_counter = nodes_assign_dict_counter + 1
                 if n in equations[node]:
                     equations[node] = equations[node].replace(n, 'actual_state_s1[' + nodes_assign_dict[n] + ']')
-            assign_string = assign_string + "assign next_state_s1[" + nodes_assign_dict[node] + "] = " + equations[
-                node] + ";\n"
+            assign_string = assign_string + "assign next_state_s1[" + nodes_assign_dict[" " + node + " "] + "] = " + \
+                            equations[node] + ";\n"
 
         # For S1 pointer
         m.EmbeddedCode("// For S1 pointer")
@@ -352,7 +356,7 @@ class GrnComponents:
         pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
         pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width + pe_end_conf.width])
         config_counter = m.Reg('config_counter', int(ceil(log2(((pe_init_conf.width + pe_end_conf.width) // 32)))))
-        #config_forward = m.Wire('config_forward', default_bus_width)
+        # config_forward = m.Wire('config_forward', default_bus_width)
         m.EmbeddedCode('//configuration wires and regs - end\n')
         # configuration wires and regs end -----------------------------------------------------------------------------
 
@@ -388,9 +392,9 @@ class GrnComponents:
 
         # configuration sector -----------------------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration sector - begin')
-        #if pe_init_conf.width > default_bus_width:
+        # if pe_init_conf.width > default_bus_width:
         #    config_forward.assign(pe_end_conf[0:pe_end_conf.width - default_bus_width])
-        #else:
+        # else:
         #    config_forward.assign(pe_end_conf)
 
         # PE configuration machine
@@ -402,7 +406,7 @@ class GrnComponents:
                 config_counter(0)
             ).Else(
                 If(config_input_valid)(
-                    config_counter.inc(),# ((pe_init_conf.width + pe_end_conf.width) // 32)
+                    config_counter.inc(),  # ((pe_init_conf.width + pe_end_conf.width) // 32)
                     If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 32) - 1)(
                         is_configured(1)
                     ),

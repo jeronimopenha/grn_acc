@@ -316,7 +316,6 @@ class GrnComponents:
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
         rst = m.Input('rst')
-        start = m.Input('start')
         # Basic Input - End -------------------------------------------------------------------------------------------
 
         # PE configuration signals
@@ -347,18 +346,19 @@ class GrnComponents:
         # configuration wires and regs begin ---------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration wires and regs - begin')
         is_configured = m.Reg('is_configured')
-        pe_init_conf = m.Reg('pe_init_conf', ceil(len(nodes) / default_bus_width) * default_bus_width)
-        pe_end_conf = m.Reg('pe_end_conf', ceil(len(nodes) / default_bus_width) * default_bus_width)
-        config_counter = m.Reg('config_counter', ceil(log2(ceil(len(nodes) / default_bus_width))) * 2 if ceil(
-            log2(ceil(len(nodes) / default_bus_width))) > 0 else 1)
-        config_forward = m.Wire('config_forward', default_bus_width)
+        pe_init_conf = m.Wire('pe_init_conf', ceil(len(nodes) / default_bus_width) * default_bus_width)
+        pe_end_conf = m.Wire('pe_end_conf', ceil(len(nodes) / default_bus_width) * default_bus_width)
+        pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf.width)
+        pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
+        pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width + pe_end_conf.width])
+        config_counter = m.Reg('config_counter', int(ceil(log2(((pe_init_conf.width + pe_end_conf.width) // 32)))))
+        #config_forward = m.Wire('config_forward', default_bus_width)
         m.EmbeddedCode('//configuration wires and regs - end\n')
         # configuration wires and regs end -----------------------------------------------------------------------------
 
         # regs and wires to control the grn core
         m.EmbeddedCode("// regs and wires to control the grn core")
         start_grn = m.Reg('start_grn')
-        grn_done = m.Wire('grn_done')
         grn_initial_state = m.Wire('grn_initial_state', len(nodes))
         grn_final_state = m.Wire('grn_final_state', len(nodes))
         grn_output_read_enable = m.Reg('grn_output_read_enable')
@@ -388,10 +388,10 @@ class GrnComponents:
 
         # configuration sector -----------------------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration sector - begin')
-        if pe_init_conf.width > default_bus_width:
-            config_forward.assign(pe_end_conf[0:pe_end_conf.width - default_bus_width])
-        else:
-            config_forward.assign(pe_end_conf)
+        #if pe_init_conf.width > default_bus_width:
+        #    config_forward.assign(pe_end_conf[0:pe_end_conf.width - default_bus_width])
+        #else:
+        #    config_forward.assign(pe_end_conf)
 
         # PE configuration machine
         m.Always(Posedge(clk))(
@@ -402,17 +402,12 @@ class GrnComponents:
                 config_counter(0)
             ).Else(
                 If(config_input_valid)(
-                    config_counter.inc(),
-                    If(config_counter == (ceil(len(nodes) / default_bus_width) * 2) - 1)(
+                    config_counter.inc(),# ((pe_init_conf.width + pe_end_conf.width) // 32)
+                    If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 32) - 1)(
                         is_configured(1)
                     ),
                     If(~is_configured)(
-                        pe_end_conf(
-                            Cat(config_input, pe_end_conf[pe_end_conf.width - default_bus_width:pe_end_conf.width])
-                            if pe_end_conf.width > default_bus_width else config_input),
-                        pe_init_conf(
-                            Cat(config_forward, pe_init_conf[pe_init_conf.width - default_bus_width:pe_init_conf.width])
-                            if pe_init_conf.width > default_bus_width else config_forward),
+                        pe_data_conf(Cat(config_input, pe_data_conf[default_bus_width:pe_data_conf.width]))
                     ).Else(
                         config_output_valid(config_input_valid),
                         config_output(config_input),
@@ -481,7 +476,7 @@ class GrnComponents:
                             If(rd_wr_counter == int(qty_data - 1))(
                                 fsm_pe_jo(fsm_pe_jo_look_grn)
                             ),
-                            fifo_out_input_data(grn_output_data),
+                            fifo_out_input_data(pe_bypass_data),
                             fifo_out_write_enable(1),
                             rd_wr_counter.inc(),
                         ),
@@ -582,7 +577,6 @@ class GrnComponents:
         # Here are the GRN eq_wires to be used in the core execution are created
         m.EmbeddedCode("\n// Here are the GRN eq_wires to be used in the core execution are created")
 
-
         eq_wires = []
         for node in grn_content.get_nodes_vector():
             for g in grn_mem_spec:
@@ -595,44 +589,43 @@ class GrnComponents:
             eq.assign(equations_config[last_idx:last_idx + eq.width])
             last_idx = last_idx + eq.width
 
-
         # State machine to control the grn algorithm execution
         m.EmbeddedCode("\n// State machine to control the grn algorithm execution")
-        fsm_naive = m.Reg('fsm_naive', 3)
-        fsm_naive_set = m.Localparam('fsm_naive_set', 0)
-        fsm_naive_init = m.Localparam('fsm_naive_init', 1)
-        fsm_naive_transient_finder = m.Localparam('fsm_naive_transient_finder', 2)
-        fsm_naive_period_finder = m.Localparam('fsm_naive_period_finder', 3)
-        fsm_naive_prepare_to_write = m.Localparam('fsm_naive_prepare_to_write', 4)
-        fsm_naive_write = m.Localparam('fsm_naive_write', 5)
-        fsm_naive_verify = m.Localparam('fsm_naive_verify', 6)
-        fsm_naive_done = m.Localparam('fsm_naive_done', 7)
+        fsm_mem = m.Reg('fsm_mem', 3)
+        fsm_mem_set = m.Localparam('fsm_mem_set', 0)
+        fsm_mem_init = m.Localparam('fsm_mem_init', 1)
+        fsm_mem_transient_finder = m.Localparam('fsm_mem_transient_finder', 2)
+        fsm_mem_period_finder = m.Localparam('fsm_mem_period_finder', 3)
+        fsm_mem_prepare_to_write = m.Localparam('fsm_mem_prepare_to_write', 4)
+        fsm_mem_write = m.Localparam('fsm_mem_write', 5)
+        fsm_mem_verify = m.Localparam('fsm_mem_verify', 6)
+        fsm_mem_done = m.Localparam('fsm_mem_done', 7)
 
         m.Always(Posedge(clk))(
             If(rst)(
                 fifo_write_enable(0),
-                fsm_naive(fsm_naive_set),
+                fsm_mem(fsm_mem_set),
             ).Elif(start)(
                 fifo_write_enable(0),
-                Case(fsm_naive)(
-                    When(fsm_naive_set)(
+                Case(fsm_mem)(
+                    When(fsm_mem_set)(
                         exec_state(initial_state),
-                        fsm_naive(fsm_naive_init),
+                        fsm_mem(fsm_mem_init),
                     ),
-                    When(fsm_naive_init)(
+                    When(fsm_mem_init)(
                         actual_state_s1(exec_state),
                         actual_state_s2(exec_state),
                         transient_counter(0),
                         period_counter(0),
                         flag_first_it(1),
                         flag_pulse(0),
-                        fsm_naive(fsm_naive_transient_finder),
+                        fsm_mem(fsm_mem_transient_finder),
                     ),
-                    When(fsm_naive_transient_finder)(
+                    When(fsm_mem_transient_finder)(
                         flag_first_it(0),
                         If(AndList((actual_state_s1 == actual_state_s2), ~flag_first_it, ~flag_pulse))(
                             flag_first_it(1),
-                            fsm_naive(fsm_naive_period_finder),
+                            fsm_mem(fsm_mem_period_finder),
                         ).Else(
                             actual_state_s2(next_state_s2),
                             If(flag_pulse)(
@@ -644,28 +637,28 @@ class GrnComponents:
                             ),
                         ),
                     ),
-                    When(fsm_naive_period_finder)(
+                    When(fsm_mem_period_finder)(
                         flag_first_it(0),
                         If(AndList((actual_state_s1 == actual_state_s2), ~flag_first_it))(
                             period_counter.dec(),
-                            fsm_naive(fsm_naive_prepare_to_write)
+                            fsm_mem(fsm_mem_prepare_to_write)
                         ).Else(
                             actual_state_s2(next_state_s2),
                             period_counter.inc(),
                         ),
                     ),
-                    When(fsm_naive_prepare_to_write)(
+                    When(fsm_mem_prepare_to_write)(
                         data_to_write(
                             Cat(exec_state, actual_state_s1, transient_counter,
                                 period_counter) if bits == data_write_width else Cat(
                                 Int(0, (data_write_width - bits), 2), exec_state, actual_state_s1, transient_counter,
                                 period_counter)),
-                        fsm_naive(fsm_naive_write),
+                        fsm_mem(fsm_mem_write),
                         write_counter(0),
                     ),
-                    When(fsm_naive_write)(
+                    When(fsm_mem_write)(
                         If(write_counter == int(qty_data - 1))(
-                            fsm_naive(fsm_naive_verify)
+                            fsm_mem(fsm_mem_verify)
                         ),
                         If(~fifo_full)(
                             write_counter.inc(),
@@ -674,20 +667,19 @@ class GrnComponents:
                             fifo_input_data(data_to_write[0:default_bus_width]),
                         )
                     ),
-                    When(fsm_naive_verify)(
+                    When(fsm_mem_verify)(
                         If(exec_state == final_state)(
-                            fsm_naive(fsm_naive_done),
+                            fsm_mem(fsm_mem_done),
                         ).Else(
                             exec_state.inc(),
-                            fsm_naive(fsm_naive_init)
+                            fsm_mem(fsm_mem_init)
                         )
                     ),
-                    When(fsm_naive_done)(
+                    When(fsm_mem_done)(
                     )
                 )
             )
         )
-
 
         # Assigns to define each bit is used on each equation memory
         m.EmbeddedCode("\n// Assigns to define each bit is used on each equation memory")
@@ -710,18 +702,15 @@ class GrnComponents:
                ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
                ('empty', fifo_empty), ('almostfull', fifo_full)]
         par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
-        m.Instance(fifo, 'grn_naive_core_output_fifo', par, con)
+        m.Instance(fifo, 'grn_mem_core_output_fifo', par, con)
 
         initialize_regs(m)
         self.cache[name] = m
         return m
 
-    '''
-    def create_grn_atlist_core(self, grn_content, list_width, clocks_over, default_bus_width=32):
-        nodes = grn_content.get_nodes_vector()
-        equations = grn_content.get_equations_dict()
+    def create_grn_mem_pe(self, grn_content: Grn2dot, default_bus_width=32):
 
-        name = 'grn_atlist_core'
+        name = 'grn_mem_pe'
         if name in self.cache.keys():
             return self.cache[name]
         m = Module(name)
@@ -729,318 +718,209 @@ class GrnComponents:
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
         rst = m.Input('rst')
-        start = m.Input('start')
         # Basic Input - End -------------------------------------------------------------------------------------------
 
-        # Configuration inputs - Begin --------------------------------------------------------------------------------
-        # The grn core naive configuration consists in two buses with the initial state and the final state to be
-        # searched
-        initial_state = m.Input('initial_state', len(nodes))
-        final_state = m.Input('final_state', len(nodes))
-        # Configuration Inputs - End ----------------------------------------------------------------------------------
+        # PE configuration signals
+        config_input_done = m.Input('config_input_done')
+        config_input_valid = m.Input('config_input_valid')
+        config_input = m.Input('config_input', default_bus_width)
+        config_output_done = m.OutputReg('config_output_done')
+        config_output_valid = m.OutputReg('config_output_valid')
+        config_output = m.OutputReg('config_output', default_bus_width)
+        # --------------------------------------------------------------------------------------------------------------
+
+        # bypass data Control interface - Begin -----------------------------------------------------------------------
+        # The mem kernel output data is the FIFO data output that contains all the data found
+        pe_bypass_read_enable = m.OutputReg('pe_bypass_read_enable')
+        pe_bypass_valid = m.Input('pe_bypass_valid')
+        pe_bypass_data = m.Input('pe_bypass_data', default_bus_width)
+        pe_bypass_available = m.Input('pe_bypass_available')
+        # Output data Control interface - End -------------------------------------------------------------------------
 
         # Output data Control interface - Begin -----------------------------------------------------------------------
-        # The naive kernel output data is the FIFO data output that contains all the data found
-        output_read_enable = m.Input('output_read_enable')
-        output_valid = m.Output('output_valid')
-        output_data = m.Output('output_data', default_bus_width)
-        output_available = m.Output('output_available')
+        # The mem kernel output data is the FIFO data output that contains all the data found
+        pe_output_read_enable = m.Input('pe_output_read_enable')
+        pe_output_valid = m.Output('pe_output_valid')
+        pe_output_data = m.Output('pe_output_data', default_bus_width)
+        pe_output_available = m.Output('pe_output_available')
         # Output data Control interface - End -------------------------------------------------------------------------
-        m.EmbeddedCode(
-            "// The grn core naive configuration consists in two buses with the initial state and the final ")
-        m.EmbeddedCode("// state to be searched.")
-        m.EmbeddedCode("//The naive kernel output data is the FIFO data output that contains all the data found.\n")
 
-        # Fifo wires and regs
-        m.EmbeddedCode("//Fifo wires and regs")
-        fifo_write_enable = m.Reg('fifo_write_enable')
-        fifo_input_data = m.Reg('fifo_input_data', default_bus_width)
-        fifo_full = m.Wire('fifo_full')
-        fifo_empty = m.Wire('fifo_empty')
-
-        # Reg List to seach for atractor
-        m.EmbeddedCode("\n//Reg List to seach for atractor ")
-        valid_reg = m.Reg('valid_reg', list_width)
-        atlist = m.Reg('', len(nodes), list_width)
-
-        # Wires and regs to be used in control and execution of the grn naive
-        m.EmbeddedCode("\n// Wires and regs to be used in control and execution of the grn naive")
-        actual_state = m.Reg('actual_state', len(nodes))
-        next_state = m.Wire('next_state', len(nodes))
-        exec_state = m.Reg('exec_state', len(nodes))
-        time_over = m.Reg('time_over')
+        # configuration wires and regs begin ---------------------------------------------------------------------------
+        m.EmbeddedCode('\n//configuration wires and regs - begin')
+        is_configured = m.Reg('is_configured')
+        grn_mem_spec = grn_content.get_grn_mem_specifications()
+        eq_bits = 0
+        for g in grn_mem_spec:
+            eq_bits = eq_bits + len(g[2])
+        pe_init_conf = m.Wire('pe_init_conf', ceil(grn_content.get_num_nodes() / default_bus_width) * default_bus_width)
+        pe_end_conf = m.Wire('pe_end_conf', ceil(grn_content.get_num_nodes() / default_bus_width) * default_bus_width)
+        pe_eq_conf = m.Wire('pe_eq_conf', ceil(eq_bits / default_bus_width) * default_bus_width)
+        pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf + pe_eq_conf.width)
         # TODO
-        rst_counter_clocks_over = m.Reg('rst_counter_clocks_over')
-        counter_clocks_over = m.Reg('counter_clocks_over', ceil(log2(clocks_over)))
+        config_counter = m.Reg('config_counter',
+                               ceil(log2(ceil(grn_content.get_num_nodes() / default_bus_width))) * 2 if ceil(
+                                   log2(ceil(grn_content.get_num_nodes() / default_bus_width))) > 0 else 1)
+        pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
+        pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width * 2])
+        pe_eq_conf.assign(pe_data_conf[
+                          pe_init_conf.width + pe_end_conf.width: pe_init_conf.width + pe_end_conf.width + pe_eq_conf.width])
+        m.EmbeddedCode('//configuration wires and regs - end\n')
+        # configuration wires and regs end -----------------------------------------------------------------------------
 
-        flag_first_it = m.Reg('flag_first_it')
-        bits = (len(nodes) * 2) + 32
-        data_write_width = ceil(bits / 32) * 32
+        # regs and wires to control the grn core
+        m.EmbeddedCode("// regs and wires to control the grn core")
+        start_grn = m.Reg('start_grn')
+        grn_initial_state = m.Wire('grn_initial_state', grn_content.get_num_nodes())
+        grn_final_state = m.Wire('grn_final_state', grn_content.get_num_nodes())
+        grn_output_read_enable = m.Reg('grn_output_read_enable')
+        grn_output_valid = m.Wire('grn_output_valid')
+        grn_output_data = m.Wire('grn_output_data', default_bus_width)
+        grn_output_available = m.Wire('grn_output_available')
+        fsm_pe_jo = m.Reg('fsm_pe_jo', 3)
+        fsm_pe_jo_look_grn = m.Localparam('fsm_pe_jo_look_grn', 0)
+        fsm_pe_jo_rd_grn = m.Localparam('fsm_pe_jo_rd_grn', 1)
+        fsm_pe_jo_wr_grn = m.Localparam('fsm_pe_jo_wr_grn', 2)
+        fsm_pe_jo_look_pe = m.Localparam('fsm_pe_jo_look_pe', 3)
+        fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 4)
+        fsm_pe_jo_wr_pe = m.Localparam('fsm_pe_jo_wr_pe', 5)
+
+        wr_bits = (grn_content.get_num_nodes() * 2) + 32 + 32
+        data_write_width = ceil(wr_bits / 32) * 32
         qty_data = data_write_width / 32
-        data_to_write = m.Reg('data_to_write', data_write_width)
-        write_counter = m.Reg('write_counter', ceil(log2(data_write_width / 32)))
-        m.EmbeddedCode("")
+        rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(data_write_width / 32)))
 
-        # State machine to control the grn algorithm execution
-        m.EmbeddedCode("//State machine to control the grn algorithm execution")
-        fsm_atlist = m.Reg('fsm_atlist', 3)
-        fsm_atlist_set = m.Localparam('fsm_atlist_set', 0)
-        fsm_atlist_init = m.Localparam('fsm_atlist_init', 1)
-        fsm_atlist_pulse = m.Localparam('fsm_atlist_init', 1)
-        fsm_atlist_compare = m.Localparam('fsm_atlist_init', 1)
-        fsm_atlist_transient_finder = m.Localparam('fsm_atlist_transient_finder', 2)
-        fsm_atlist_period_finder = m.Localparam('fsm_atlist_period_finder', 3)
-        fsm_atlist_prepare_to_write = m.Localparam('fsm_atlist_prepare_to_write', 4)
-        fsm_atlist_write = m.Localparam('fsm_atlist_write', 5)
-        fsm_atlist_verify = m.Localparam('fsm_atlist_verify', 6)
-        fsm_atlist_done = m.Localparam('fsm_atlist_done', 7)
+        # Fifo out wires and regs
+        m.EmbeddedCode("\n//Fifo out wires and regs")
 
-        
-        1 - inicial a lista com o estado inicial
-        2 - um pulso no grn
-        3 - comparar o novo estado com toda a lista
-        3.1 - se alguma posiçao da lista for inválida - voltar a 2
-        3.2 - senão se o estado atual for igual, gravar os dados e a posição é o transiente, atualizar estado inicial, resetar a lista, e voltar ao 1
-        3.3 - senão se timeout - gravar timeout, atualizar estado inicial, resetar a lista, e voltar ao 1
-        3.3 - se fim da lista, atualizar a lista e voltar a 2
-        
+        fifo_out_write_enable = m.Reg('fifo_out_write_enable')
+        fifo_out_input_data = m.Reg('fifo_out_input_data', default_bus_width)
+        fifo_out_empty = m.Wire('fifo_out_empty')
+        fifo_out_full = m.Wire('fifo_out_full')
 
+        # configuration sector -----------------------------------------------------------------------------------------
+        m.EmbeddedCode('\n//configuration sector - begin')
+        # PE configuration machine
+        m.Always(Posedge(clk))(
+            config_output_valid(0),
+            config_output_done(config_input_done),
+            If(rst)(
+                is_configured(0),
+                config_counter(0)
+            ).Else(
+                If(config_input_valid)(
+                    config_counter.inc(),
+                    If(config_counter == (ceil(grn_content.get_num_nodes() / default_bus_width) * 2) - 1)(
+                        is_configured(1)
+                    ),
+                    If(~is_configured)(
+                        pe_data_conf(Cat(config_input, pe_data_conf[default_bus_width:pe_data_conf.width]))
+                    ).Else(
+                        config_output_valid(config_input_valid),
+                        config_output(config_input),
+                    )
+                )
+            ),
+        )
+        m.EmbeddedCode('//configuration sector - end')
+        # configuration sector - end -----------------------------------------------------------------------------------
+
+        # execution sector - begin -------------------------------------------------------------------------------------
+        m.EmbeddedCode("\n//execution sector - begin")
         m.Always(Posedge(clk))(
             If(rst)(
-                fsm_atlist(fsm_atlist_set),
-            ).Elif(start)(
-                rst_counter_clocks_over(0),
-                fifo_write_enable(0),
-                Case(fsm_atlist)(
-                    When(fsm_atlist_set)(
-                        exec_state(initial_state),
-                        fsm_atlist(fsm_atlist_init),
+                start_grn(0),
+                grn_output_read_enable(0),
+                fifo_out_write_enable(0),
+                pe_bypass_read_enable(0),
+                fsm_pe_jo(fsm_pe_jo_look_grn),
+            ).Elif(is_configured)(
+                start_grn(1),
+                grn_output_read_enable(0),
+                fifo_out_write_enable(0),
+                pe_bypass_read_enable(0),
+                Case(fsm_pe_jo)(
+                    When(fsm_pe_jo_look_grn)(
+                        fsm_pe_jo(fsm_pe_jo_look_pe),
+                        If(grn_output_available)(
+                            rd_wr_counter(0),
+                            fsm_pe_jo(fsm_pe_jo_rd_grn),
+                        )
                     ),
-                    When(fsm_atlist_init)(
-                        rst_counter_clocks_over(1),
-                        actual_state(exec_state),
-                        atlist[0](exec_state),
-                        valid_reg(1),
-                        fsm_atlist(fsm_atlist_pulse),
+                    When(fsm_pe_jo_rd_grn)(
+                        If(Uand(Cat(grn_output_available, ~fifo_out_full)))(
+                            grn_output_read_enable(1),
+                            fsm_pe_jo(fsm_pe_jo_wr_grn)
+                        )
                     ),
-                    When(fsm_atlist_pulse)(
-                        actual_state(next_state),
-                        counter_compare
-                        fsm_atlist(),
-                    ),
-                    When(fsm_atlist_transient_finder)(
-                        flag_first_it(0),
-                        If(AndList((actual_state == actual_state_s2), ~flag_first_it, ~flag_pulse))(
-                            flag_first_it(1),
-                            fsm_atlist(fsm_atlist_period_finder),
-                        ).Else(
-                            actual_state_s2(next_state_s2),
-                            If(flag_pulse)(
-                                transient_counter.inc(),
-                                flag_pulse(0),
-                            ).Else(
-                                flag_pulse(1),
-                                actual_state(next_state),
+                    When(fsm_pe_jo_wr_grn)(
+                        If(grn_output_valid)(
+                            fsm_pe_jo(fsm_pe_jo_rd_grn),
+                            If(rd_wr_counter == int(qty_data - 1))(
+                                fsm_pe_jo(fsm_pe_jo_look_pe)
                             ),
+                            fifo_out_input_data(grn_output_data),
+                            rd_wr_counter.inc(),
+                            fifo_out_write_enable(1),
                         ),
                     ),
-                    When(fsm_atlist_period_finder)(
-                        flag_first_it(0),
-                        If(AndList((actual_state == actual_state_s2), ~flag_first_it))(
-                            period_counter.dec(),
-                            fsm_atlist(fsm_atlist_prepare_to_write)
-                        ).Else(
-                            actual_state_s2(next_state_s2),
-                            period_counter.inc(),
-                        ),
-                    ),
-                    When(fsm_atlist_prepare_to_write)(
-                        data_to_write(
-                            Cat(exec_state, actual_state, transient_counter,
-                                period_counter) if bits == data_write_width else Cat(
-                                Int(0, (data_write_width - bits), 2), exec_state, actual_state, transient_counter,
-                                period_counter)),
-                        fsm_atlist(fsm_atlist_write),
-                        write_counter(0),
-                    ),
-                    When(fsm_atlist_write)(
-                        If(write_counter == int(qty_data - 1))(
-                            fsm_atlist(fsm_atlist_verify)
-                        ),
-                        If(~fifo_full)(
-                            write_counter.inc(),
-                            fifo_write_enable(1),
-                            data_to_write(Cat(Int(0, 32, 2), data_to_write[32:data_to_write.width])),
-                            fifo_input_data(data_to_write[0:default_bus_width]),
+                    When(fsm_pe_jo_look_pe)(
+                        fsm_pe_jo(fsm_pe_jo_look_grn),
+                        If(pe_bypass_available)(
+                            rd_wr_counter(0),
+                            fsm_pe_jo(fsm_pe_jo_rd_pe),
                         )
                     ),
-                    When(fsm_atlist_verify)(
-                        If(exec_state == final_state)(
-                            fsm_atlist(fsm_atlist_done),
-                        ).Else(
-                            exec_state.inc(),
-                            fsm_atlist(fsm_atlist_init)
+                    When(fsm_pe_jo_rd_pe)(
+                        If(Uand(Cat(pe_bypass_available, ~fifo_out_full)))(
+                            pe_bypass_read_enable(1),
+                            fsm_pe_jo(fsm_pe_jo_wr_pe)
                         )
                     ),
-                    When(fsm_atlist_done)(
-                    )
+                    When(fsm_pe_jo_wr_pe)(
+                        If(pe_bypass_valid)(
+                            fsm_pe_jo(fsm_pe_jo_rd_pe),
+                            If(rd_wr_counter == int(qty_data - 1))(
+                                fsm_pe_jo(fsm_pe_jo_look_grn)
+                            ),
+                            fifo_out_input_data(pe_bypass_data),
+                            fifo_out_write_enable(1),
+                            rd_wr_counter.inc(),
+                        ),
+                    ),
                 )
             )
         )
 
-        
-        # Wires and regs to be used in control and execution of the grn naive
-        m.EmbeddedCode("\n// Wires and regs to be used in control and execution of the grn naive")
-        actual_state = m.Reg('actual_state', len(nodes))
-        next_state = m.Wire('next_state', len(nodes))
-        exec_state = m.Reg('exec_state', len(nodes))
-        time_over = m.Reg('time_over')
+        # execution sector - end ---------------------------------------------------------------------------------------
 
-        
-        flag_first_it = m.Reg('flag_first_it')
-        bits = (len(nodes) * 2) + 32 + 32
-        data_write_width = ceil(bits / 32) * 32
-        qty_data = data_write_width / 32
-        data_to_write = m.Reg('data_to_write', data_write_width)
-        write_counter = m.Reg('write_counter', ceil(log2(data_write_width / 32)))
-        m.EmbeddedCode("")
+        # Grn core instantiation
+        m.EmbeddedCode("// Grn core instantiation")
+        grn_initial_state.assign(pe_init_conf[0:grn_initial_state.width])
+        grn_final_state.assign(pe_end_conf[0:grn_final_state.width])
 
-        # State machine to control the grn algorithm execution
-        m.EmbeddedCode("//State machine to control the grn algorithm execution")
-        fsm_atlist = m.Reg('fsm_atlist', 3)
-        fsm_atlist_set = m.Localparam('fsm_atlist_set', 0)
-        fsm_atlist_init = m.Localparam('fsm_atlist_init', 1)
-        fsm_atlist_transient_finder = m.Localparam('fsm_atlist_transient_finder', 2)
-        fsm_atlist_period_finder = m.Localparam('fsm_atlist_period_finder', 3)
-        fsm_atlist_prepare_to_write = m.Localparam('fsm_atlist_prepare_to_write', 4)
-        fsm_atlist_write = m.Localparam('fsm_atlist_write', 5)
-        fsm_atlist_verify = m.Localparam('fsm_atlist_verify', 6)
-        fsm_atlist_done = m.Localparam('fsm_atlist_done', 7)
+        con = [('clk', clk), ('rst', rst), ('start', start_grn), ('initial_state', grn_initial_state),
+               ('final_state', grn_final_state), ('output_read_enable', grn_output_read_enable),
+               ('output_valid', grn_output_valid), ('output_data', grn_output_data),
+               ('output_available', grn_output_available)]
+        par = []
+        grn = self.create_grn_mem_core(grn_content)
+        m.Instance(grn, 'grn_mem_core', par, con)
 
-        m.Always(Posedge(clk))(
-            If(rst)(
-                fifo_write_enable(0),
-                fsm_atlist(fsm_atlist_set),
-            ).Elif(start)(
-                fifo_write_enable(0),
-                Case(fsm_atlist)(
-                    When(fsm_atlist_set)(
-                        exec_state(initial_state),
-                        fsm_atlist(fsm_atlist_init),
-                    ),
-                    When(fsm_atlist_init)(
-                        actual_state(exec_state),
-                        actual_state_s2(exec_state),
-                        transient_counter(0),
-                        period_counter(0),
-                        flag_first_it(1),
-                        flag_pulse(0),
-                        fsm_atlist(fsm_atlist_transient_finder),
-                    ),
-                    When(fsm_atlist_transient_finder)(
-                        flag_first_it(0),
-                        If(AndList((actual_state == actual_state_s2), ~flag_first_it, ~flag_pulse))(
-                            flag_first_it(1),
-                            fsm_atlist(fsm_atlist_period_finder),
-                        ).Else(
-                            actual_state_s2(next_state_s2),
-                            If(flag_pulse)(
-                                transient_counter.inc(),
-                                flag_pulse(0),
-                            ).Else(
-                                flag_pulse(1),
-                                actual_state(next_state),
-                            ),
-                        ),
-                    ),
-                    When(fsm_atlist_period_finder)(
-                        flag_first_it(0),
-                        If(AndList((actual_state == actual_state_s2), ~flag_first_it))(
-                            period_counter.dec(),
-                            fsm_atlist(fsm_atlist_prepare_to_write)
-                        ).Else(
-                            actual_state_s2(next_state_s2),
-                            period_counter.inc(),
-                        ),
-                    ),
-                    When(fsm_atlist_prepare_to_write)(
-                        data_to_write(
-                            Cat(exec_state, actual_state, transient_counter,
-                                period_counter) if bits == data_write_width else Cat(
-                                Int(0, (data_write_width - bits), 2), exec_state, actual_state, transient_counter,
-                                period_counter)),
-                        fsm_atlist(fsm_atlist_write),
-                        write_counter(0),
-                    ),
-                    When(fsm_atlist_write)(
-                        If(write_counter == int(qty_data - 1))(
-                            fsm_atlist(fsm_atlist_verify)
-                        ),
-                        If(~fifo_full)(
-                            write_counter.inc(),
-                            fifo_write_enable(1),
-                            data_to_write(Cat(Int(0, 32, 2), data_to_write[32:data_to_write.width])),
-                            fifo_input_data(data_to_write[0:default_bus_width]),
-                        )
-                    ),
-                    When(fsm_atlist_verify)(
-                        If(exec_state == final_state)(
-                            fsm_atlist(fsm_atlist_done),
-                        ).Else(
-                            exec_state.inc(),
-                            fsm_atlist(fsm_atlist_init)
-                        )
-                    ),
-                    When(fsm_atlist_done)(
-                    )
-                )
-            )
-        )
-
-        # Output data fifo instantiation
-        m.EmbeddedCode("//Output data fifo instantiation")
-
-        output_available.assign(~fifo_empty)
+        pe_output_available.assign(~fifo_out_empty)
 
         fifo = self.create_fifo()
-        con = [('clk', clk), ('rst', rst), ('write_enable', fifo_write_enable), ('input_data', fifo_input_data),
-               ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
-               ('empty', fifo_empty), ('almostfull', fifo_full)]
+        con = [('clk', clk), ('rst', rst), ('write_enable', fifo_out_write_enable), ('input_data', fifo_out_input_data),
+               ('output_read_enable', pe_output_read_enable), ('output_valid', pe_output_valid),
+               ('output_data', pe_output_data), ('empty', fifo_out_empty), ('almostfull', fifo_out_full)]
         par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
-        m.Instance(fifo, 'grn_at_list_output_fifo', par, con)
+        m.Instance(fifo, 'pe_mem_fifo_out', par, con)
 
-        # Here are the GRN equations to be used in the core execution are created
-        m.EmbeddedCode("\n// Here are the GRN equations to be used in the core execution are created")
-        nodes_assign_dict = {}
-        nodes_assign_dict_counter = 0
-        assign_string = ""
-        for node in equations:
-            equations[node] = equations[node].replace('||', ' || ')
-            equations[node] = equations[node].replace('&&', ' && ')
-            equations[node] = equations[node].replace('~', ' ~')
-            for n in nodes:
-                if not n in nodes_assign_dict:
-                    nodes_assign_dict[n] = str(nodes_assign_dict_counter)
-                    nodes_assign_dict_counter = nodes_assign_dict_counter + 1
-                if n in equations[node]:
-                    equations[node] = equations[node].replace(n, 'actual_state[' + nodes_assign_dict[n] + ']')
-            assign_string = assign_string + "assign next_state[" + nodes_assign_dict[node] + "] = " + equations[
-                node] + ";\n"
-
-        # For S1 pointer
-        m.EmbeddedCode("// For S1 pointer")
-        m.EmbeddedCode(assign_string)
-        m.EmbeddedCode("// For S2 pointer")
-        assign_string = assign_string.replace("actual_state", "actual_state_s2")
-        assign_string = assign_string.replace("next_state", "next_state_s2")
-        m.EmbeddedCode(assign_string)
-        
         initialize_regs(m)
         self.cache[name] = m
         return m
-    '''
 
 
-grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_5.txt")
+grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
 grn = GrnComponents()
-grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_core.v")
+grn.create_grn_naive_pe(grn_content).to_verilog("../test_benches/grn_naive_pe_70.v")
+# grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

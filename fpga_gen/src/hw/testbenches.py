@@ -25,7 +25,6 @@ class TestBenches:
         tb.EmbeddedCode('\n//Standar I/O signals - Begin')
         tb_clk = tb.Reg('tb_clk')
         tb_rst = tb.Reg('tb_rst')
-        tb_start_reg = tb.Reg('tb_start_reg')
         tb.EmbeddedCode('//Standar I/O signals - End')
 
         # grn naive pe instantiation regs and wires - Begin ------------------------------------------------------------
@@ -132,7 +131,6 @@ class TestBenches:
         fsm_consume_data_show = tb.Localparam('fsm_consume_data_show', 3)
         fsm_consume_data_done = tb.Localparam('fsm_consume_data_done', 4)
 
-
         tb.Always(Posedge(tb_clk))(
             If(tb_rst)(
                 fsm_consume_data(fsm_consume_data_wait),
@@ -166,7 +164,7 @@ class TestBenches:
                     ),
                     When(fsm_consume_data_show)(
                         fsm_consume_data(fsm_consume_data_wait),
-                        If(rec_data_counter == max_data-1)(
+                        If(rec_data_counter == max_data - 1)(
                             fsm_consume_data(fsm_consume_data_done),
                         ),
                         Display("i_s: %h s_s: %h t: %h p: %h", i_state, s_state, transient, period),
@@ -195,8 +193,7 @@ class TestBenches:
 
         # grn pe naive instantiation - Begin -----------------------------------------------------------------
         grn_pe_naive = GrnComponents().create_grn_naive_pe(self.grn_content)
-        con = [('clk', tb_clk), ('rst', tb_rst), ('start', tb_start_reg),
-               ('config_input_done', grn_pe_naive_config_input_done),
+        con = [('clk', tb_clk), ('rst', tb_rst), ('config_input_done', grn_pe_naive_config_input_done),
                ('config_input_valid', grn_pe_naive_config_input_valid), ('config_input', grn_pe_naive_config_input),
                ('config_output_done', grn_pe_naive_config_output_done),
                ('config_output_valid', grn_pe_naive_config_output_valid), ('config_output', grn_pe_naive_config_output),
@@ -219,11 +216,9 @@ class TestBenches:
             EmbeddedCode('@(posedge tb_clk);'),
             EmbeddedCode('@(posedge tb_clk);'),
             tb_rst(0),
-            tb_start_reg(1),
             Delay(1000000), Finish()
         )
         tb.EmbeddedCode('always #5tb_clk=~tb_clk;')
-
 
         tb.Always(Posedge(tb_clk))(
             If(done)(
@@ -231,7 +226,6 @@ class TestBenches:
                 Finish()
             )
         )
-
 
         tb.EmbeddedCode('\n//Simulation sector - End')
         tb.to_verilog('../test_benches/grn_naive_pe_test_bench_' + str(

@@ -9,7 +9,6 @@ module test_bench
   //Standar I/O signals - Begin
   reg tb_clk;
   reg tb_rst;
-  reg tb_start_reg;
   //Standar I/O signals - End
 
   // grn naive pe instantiation regs and wires - Begin
@@ -155,7 +154,6 @@ module test_bench
   (
     .clk(tb_clk),
     .rst(tb_rst),
-    .start(tb_start_reg),
     .config_input_done(grn_pe_naive_config_input_done),
     .config_input_valid(grn_pe_naive_config_input_valid),
     .config_input(grn_pe_naive_config_input),
@@ -176,7 +174,6 @@ module test_bench
   initial begin
     tb_clk = 0;
     tb_rst = 1;
-    tb_start_reg = 0;
     grn_pe_naive_config_input_done = 0;
     grn_pe_naive_config_input_valid = 0;
     grn_pe_naive_config_input = 0;
@@ -202,7 +199,6 @@ module test_bench
     @(posedge tb_clk);
     @(posedge tb_clk);
     tb_rst = 0;
-    tb_start_reg = 1;
     #1000000;
     $finish;
   end
@@ -226,7 +222,6 @@ module grn_naive_pe
 (
   input clk,
   input rst,
-  input start,
   input config_input_done,
   input config_input_valid,
   input [32-1:0] config_input,
@@ -246,15 +241,17 @@ module grn_naive_pe
 
   //configuration wires and regs - begin
   reg is_configured;
-  reg [32-1:0] pe_init_conf;
-  reg [32-1:0] pe_end_conf;
+  wire [32-1:0] pe_init_conf;
+  wire [32-1:0] pe_end_conf;
+  reg [64-1:0] pe_data_conf;
+  assign pe_init_conf = pe_data_conf[31:0];
+  assign pe_end_conf = pe_data_conf[63:32];
   reg [1-1:0] config_counter;
   wire [32-1:0] config_forward;
   //configuration wires and regs - end
 
   // regs and wires to control the grn core
   reg start_grn;
-  wire grn_done;
   wire [5-1:0] grn_initial_state;
   wire [5-1:0] grn_final_state;
   reg grn_output_read_enable;
@@ -292,8 +289,7 @@ module grn_naive_pe
           is_configured <= 1;
         end 
         if(~is_configured) begin
-          pe_end_conf <= config_input;
-          pe_init_conf <= config_forward;
+          pe_data_conf <= { config_input, pe_data_conf[63:32] };
         end else begin
           config_output_valid <= config_input_valid;
           config_output <= config_input;
@@ -363,7 +359,7 @@ module grn_naive_pe
               if(rd_wr_counter == 2) begin
                 fsm_pe_jo <= fsm_pe_jo_look_grn;
               end 
-              fifo_out_input_data <= grn_output_data;
+              fifo_out_input_data <= pe_bypass_data;
               fifo_out_write_enable <= 1;
               rd_wr_counter <= rd_wr_counter + 1;
             end 
@@ -418,8 +414,7 @@ module grn_naive_pe
     config_output = 0;
     pe_bypass_read_enable = 0;
     is_configured = 0;
-    pe_init_conf = 0;
-    pe_end_conf = 0;
+    pe_data_conf = 0;
     config_counter = 0;
     start_grn = 0;
     grn_output_read_enable = 0;

@@ -230,6 +230,7 @@ class GrnComponents:
                         ),
                     ),
                     When(fsm_naive_prepare_to_write)(
+                        # TODO
                         data_to_write(
                             Cat(exec_state, actual_state_s1, transient_counter,
                                 period_counter) if bits == data_write_width else Cat(
@@ -538,7 +539,7 @@ class GrnComponents:
         final_state = m.Input('final_state', grn_content.get_num_nodes())
         eq_bits = 0
         for g in grn_mem_spec:
-            eq_bits = eq_bits + len(g[2])
+            eq_bits = eq_bits + int(pow(2, len(g[2])))
         equations_config = m.Input('equations_config', eq_bits)
         # Configuration Inputs - End ----------------------------------------------------------------------------------
 
@@ -585,7 +586,7 @@ class GrnComponents:
         for node in grn_content.get_nodes_vector():
             for g in grn_mem_spec:
                 if g[0] == node:
-                    eq_wires.append(m.Wire("eq_" + node, len(g[2])))
+                    eq_wires.append(m.Wire("eq_" + node, pow(2, len(g[2]))))
                     break
         # assign each bus in the correct place of configuration memory
         last_idx = 0
@@ -652,6 +653,7 @@ class GrnComponents:
                         ),
                     ),
                     When(fsm_mem_prepare_to_write)(
+                        # TODO
                         data_to_write(
                             Cat(exec_state, actual_state_s1, transient_counter,
                                 period_counter) if bits == data_write_width else Cat(
@@ -755,19 +757,16 @@ class GrnComponents:
         grn_mem_spec = grn_content.get_grn_mem_specifications()
         eq_bits = 0
         for g in grn_mem_spec:
-            eq_bits = eq_bits + len(g[2])
+            eq_bits = eq_bits + int(pow(2, len(g[2])))
         pe_init_conf = m.Wire('pe_init_conf', ceil(grn_content.get_num_nodes() / default_bus_width) * default_bus_width)
         pe_end_conf = m.Wire('pe_end_conf', ceil(grn_content.get_num_nodes() / default_bus_width) * default_bus_width)
-        pe_eq_conf = m.Wire('pe_eq_conf', ceil(eq_bits / default_bus_width) * default_bus_width)
-        pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf + pe_eq_conf.width)
-        # TODO
-        config_counter = m.Reg('config_counter',
-                               ceil(log2(ceil(grn_content.get_num_nodes() / default_bus_width))) * 2 if ceil(
-                                   log2(ceil(grn_content.get_num_nodes() / default_bus_width))) > 0 else 1)
+        pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf.width)
+        config_counter = m.Reg('config_counter', ceil(log2((pe_init_conf.width + pe_end_conf.width) / 32)))
+        pe_eq_conf = m.Reg('pe_eq_conf', ceil(eq_bits / default_bus_width) * default_bus_width)
+        config_eq_counter = m.Reg('config_eq_counter', ceil(log2(pe_eq_conf.width / 32)))
         pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
         pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width * 2])
-        pe_eq_conf.assign(pe_data_conf[
-                          pe_init_conf.width + pe_end_conf.width: pe_init_conf.width + pe_end_conf.width + pe_eq_conf.width])
+
         m.EmbeddedCode('//configuration wires and regs - end\n')
         # configuration wires and regs end -----------------------------------------------------------------------------
 
@@ -776,6 +775,7 @@ class GrnComponents:
         start_grn = m.Reg('start_grn')
         grn_initial_state = m.Wire('grn_initial_state', grn_content.get_num_nodes())
         grn_final_state = m.Wire('grn_final_state', grn_content.get_num_nodes())
+        grn_equations_config = m.Wire('grn_equations_config', eq_bits)
         grn_output_read_enable = m.Reg('grn_output_read_enable')
         grn_output_valid = m.Wire('grn_output_valid')
         grn_output_data = m.Wire('grn_output_data', default_bus_width)
@@ -803,26 +803,42 @@ class GrnComponents:
 
         # configuration sector -----------------------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration sector - begin')
+        fsm_config = m.Reg('fsm_config', 2)
+        fsm_config_mem_config = m.Localparam('fsm_config_mem_config', 0)
+        fsm_config_other = m.Localparam('fsm_config_other', 1)
+        fsm_config_done = m.Localparam('fsm_config_done', 2)
+
         # PE configuration machine
         m.Always(Posedge(clk))(
             config_output_valid(0),
             config_output_done(config_input_done),
             If(rst)(
                 is_configured(0),
-                config_counter(0)
-            ).Else(
-                If(config_input_valid)(
-                    config_counter.inc(),
-                    If(config_counter == (ceil(grn_content.get_num_nodes() / default_bus_width) * 2) - 1)(
-                        is_configured(1)
+                config_counter(0),
+                config_eq_counter(0),
+                fsm_config(fsm_config_mem_config),
+            ).Elif(config_input_valid)(
+                Case(fsm_config)(
+                    When(fsm_config_mem_config)(
+                        config_eq_counter.inc(),
+                        If(config_eq_counter == (pe_eq_conf.width // 32) - 1)(
+                            fsm_config(fsm_config_other),
+                        ),
+                        pe_eq_conf(Cat(config_input, pe_eq_conf[default_bus_width:pe_eq_conf.width]))
                     ),
-                    If(~is_configured)(
+                    When(fsm_config_other)(
+                        config_counter.inc(),
+                        If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 32) - 1)(
+                            is_configured(1),
+                            fsm_config(fsm_config_done),
+                        ),
                         pe_data_conf(Cat(config_input, pe_data_conf[default_bus_width:pe_data_conf.width]))
-                    ).Else(
+                    ),
+                    When(fsm_config_done)(
                         config_output_valid(config_input_valid),
                         config_output(config_input),
-                    )
-                )
+                    ),
+                ),
             ),
         )
         m.EmbeddedCode('//configuration sector - end')
@@ -901,11 +917,12 @@ class GrnComponents:
         m.EmbeddedCode("// Grn core instantiation")
         grn_initial_state.assign(pe_init_conf[0:grn_initial_state.width])
         grn_final_state.assign(pe_end_conf[0:grn_final_state.width])
+        grn_equations_config.assign(pe_eq_conf[0:grn_equations_config.width])
 
         con = [('clk', clk), ('rst', rst), ('start', start_grn), ('initial_state', grn_initial_state),
-               ('final_state', grn_final_state), ('output_read_enable', grn_output_read_enable),
-               ('output_valid', grn_output_valid), ('output_data', grn_output_data),
-               ('output_available', grn_output_available)]
+               ('final_state', grn_final_state), ('equations_config', grn_equations_config),
+               ('output_read_enable', grn_output_read_enable), ('output_valid', grn_output_valid),
+               ('output_data', grn_output_data), ('output_available', grn_output_available)]
         par = []
         grn = self.create_grn_mem_core(grn_content)
         m.Instance(grn, 'grn_mem_core', par, con)
@@ -926,5 +943,5 @@ class GrnComponents:
 
 grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
 grn = GrnComponents()
-grn.create_grn_naive_pe(grn_content).to_verilog("../test_benches/grn_naive_pe_70.v")
+grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

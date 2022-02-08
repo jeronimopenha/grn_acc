@@ -647,7 +647,7 @@ class GrnComponents:
         for node in grn_content.get_nodes_vector():
             for g in grn_mem_spec:
                 if g[0] == node:
-                    eq_wires.append(m.Wire("eq_" + node, pow(2, len(g[2]))))
+                    eq_wires.append(m.Wire("eq_" + node.replace(' ', ''), pow(2, len(g[2]))))
                     break
         # assign each bus in the correct place of configuration memory
         last_idx = 0
@@ -767,7 +767,7 @@ class GrnComponents:
             for idx in grn_mem_spec[i][2]:
                 assign_string = assign_string + 'actual_state_s1[' + str(idx) + '],'
             assign_string = assign_string[0:(len(assign_string) - 1)]
-            assign_string = assign_string + '}]'
+            assign_string = assign_string + '}];'
             m.EmbeddedCode(assign_string)
             m.EmbeddedCode(assign_string.replace('_s1', '_s2'))
 
@@ -861,10 +861,10 @@ class GrnComponents:
         fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 4)
         fsm_pe_jo_wr_pe = m.Localparam('fsm_pe_jo_wr_pe', 5)
 
-        wr_bits = (grn_content.get_num_nodes() * 2) + 32 + 32
-        data_write_width = ceil(wr_bits / 32) * 32
-        qty_data = data_write_width / 32
-        rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(data_write_width / 32)))
+        wr_bits = (ceil(grn_content.get_num_nodes() / 32) * 32 * 2) + 32 + 32
+        data_write_width = wr_bits
+        qty_data = data_write_width // 32
+        rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(qty_data)))
 
         # Fifo out wires and regs
         m.EmbeddedCode("\n//Fifo out wires and regs")
@@ -884,32 +884,37 @@ class GrnComponents:
         # PE configuration machine
         m.Always(Posedge(clk))(
             config_output_valid(0),
+            config_output(config_input),
             config_output_done(config_input_done),
             If(rst)(
                 is_configured(0),
                 config_counter(0),
                 config_eq_counter(0),
                 fsm_config(fsm_config_mem_config),
-            ).Elif(config_input_valid)(
+            ).Else(
                 Case(fsm_config)(
                     When(fsm_config_mem_config)(
-                        config_eq_counter.inc(),
-                        If(config_eq_counter == (pe_eq_conf.width // 32) - 1)(
-                            fsm_config(fsm_config_other),
+                        If(config_input_valid)(
+                            config_eq_counter.inc(),
+                            If(config_eq_counter == (pe_eq_conf.width // 32) - 1)(
+                                fsm_config(fsm_config_other),
+                            ),
+                            pe_eq_conf(Cat(config_input, pe_eq_conf[default_bus_width:pe_eq_conf.width])),
+                            config_output_valid(config_input_valid),
                         ),
-                        pe_eq_conf(Cat(config_input, pe_eq_conf[default_bus_width:pe_eq_conf.width]))
                     ),
                     When(fsm_config_other)(
-                        config_counter.inc(),
-                        If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 32) - 1)(
-                            is_configured(1),
-                            fsm_config(fsm_config_done),
+                        If(config_input_valid)(
+                            config_counter.inc(),
+                            If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 32) - 1)(
+                                is_configured(1),
+                                fsm_config(fsm_config_done),
+                            ),
+                            pe_data_conf(Cat(config_input, pe_data_conf[default_bus_width:pe_data_conf.width]))
                         ),
-                        pe_data_conf(Cat(config_input, pe_data_conf[default_bus_width:pe_data_conf.width]))
                     ),
                     When(fsm_config_done)(
                         config_output_valid(config_input_valid),
-                        config_output(config_input),
                     ),
                 ),
             ),
@@ -1013,9 +1018,8 @@ class GrnComponents:
         self.cache[name] = m
         return m
 
-
-grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_5.txt")
+grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
 grn = GrnComponents()
-grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_pe_5.v")
+grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

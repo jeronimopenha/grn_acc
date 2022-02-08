@@ -272,20 +272,13 @@ class TestBenches:
 
         # Config Rom configuration regs and wires - Begin --------------------------------------------------------------
         tb.EmbeddedCode('\n//Config Rom configuration regs and wires - Begin')
-        generate_grn_mem_config(self.grn_content)
-
-        '''
-        bits_grn = len(self.grn_content.get_nodes_vector())
-        qty_conf = ceil(bits_grn / self.default_bus_width) * 2
-        configs = []
-        configs.append(0)
-        configs.append(floor(pow(2, bits_grn)) - 1)
+        rom_config = generate_grn_mem_config(self.grn_content)
+        qty_conf = len(rom_config)
         config_counter = tb.Reg('config_counter', ceil(log2(qty_conf)) + 1)
         config_rom = tb.Wire('config_rom', self.default_bus_width, qty_conf)
         tb.EmbeddedCode('//Config Rom configuration regs and wires - End')
         # Config Rom configuration regs and wires - End ----------------------------------------------------------------
 
-        
         # Data Producer regs and wires - Begin -------------------------------------------------------------------------
         tb.EmbeddedCode('\n//Data Producer regs and wires - Begin')
         fsm_produce_data = tb.Reg('fsm_produce_data', 2)
@@ -310,8 +303,7 @@ class TestBenches:
                         grn_pe_mem_config_input_valid(1),
                         grn_pe_mem_config_input(config_rom[config_counter]),
                         config_counter.inc(),
-                        If(config_counter == qty_conf)(
-                            grn_pe_mem_config_input_valid(0),
+                        If(config_counter == qty_conf-1)(
                             fsm_produce_data(fsm_done)
                         )
                     ),
@@ -326,22 +318,26 @@ class TestBenches:
 
         # Data Consumer - Begin ----------------------------------------------------------------------------------------
         tb.EmbeddedCode('\n//Data Consumer - Begin')
-        bits = (len(self.grn_content.get_nodes_vector()) * 2) + 32 + 32
-        data_read_width = ceil(bits / 32) * 32
-        qty_data = data_read_width / 32
+        bits = (ceil(self.grn_content.get_num_nodes() / 32) * 32 * 2) + 32 + 32
+        data_read_width = bits
+        qty_data = data_read_width // 32
         max_data = tb.Localparam('max_data', floor(pow(2, len(self.grn_content.get_nodes_vector()))))
-        rec_data_counter = tb.Reg('rec_data_counter', floor(log2(pow(2, len(self.grn_content.get_nodes_vector())))))
+        max_data_counter = tb.Reg('max_data_counter', floor(log2(pow(2, len(self.grn_content.get_nodes_vector())))))
         rd_counter = tb.Reg('rd_counter', ceil(log2(qty_data)))
         data = tb.Reg('data', data_read_width)
         period = tb.Wire('period', 32)
         transient = tb.Wire('transient', 32)
         i_state = tb.Wire('i_state', len(self.grn_content.get_nodes_vector()))
         s_state = tb.Wire('s_state', len(self.grn_content.get_nodes_vector()))
-        period.assign(data[0:period.width])
-        transient.assign(data[period.width:period.width + transient.width])
-        s_state.assign(data[period.width + transient.width:period.width + transient.width + s_state.width])
-        i_state.assign(data[
-                       period.width + transient.width + s_state.width:period.width + transient.width + s_state.width + i_state.width])
+        init_idx = 0
+        period.assign(data[init_idx:period.width])
+        init_idx = init_idx + period.width
+        transient.assign(data[init_idx:init_idx + transient.width])
+        init_idx = init_idx + period.width
+        s_state.assign(data[init_idx:init_idx + s_state.width])
+        add_bit_states = ceil(self.grn_content.get_num_nodes() / 32) * 32 - s_state.width
+        init_idx = init_idx + s_state.width + add_bit_states
+        i_state.assign(data[init_idx:init_idx + i_state.width])
 
         done = tb.Reg('done')
         fsm_consume_data = tb.Reg('fsm_consume_data', 3)
@@ -354,7 +350,7 @@ class TestBenches:
         tb.Always(Posedge(tb_clk))(
             If(tb_rst)(
                 fsm_consume_data(fsm_consume_data_wait),
-                rec_data_counter(0),
+                max_data_counter(0),
                 done(0),
                 grn_pe_mem_pe_output_read_enable(0),
             ).Else(
@@ -384,11 +380,11 @@ class TestBenches:
                     ),
                     When(fsm_consume_data_show)(
                         fsm_consume_data(fsm_consume_data_wait),
-                        If(rec_data_counter == max_data - 1)(
+                        If(max_data_counter == max_data - 1)(
                             fsm_consume_data(fsm_consume_data_done),
                         ),
                         Display("i_s: %h s_s: %h t: %h p: %h", i_state, s_state, transient, period),
-                        rec_data_counter.inc(),
+                        max_data_counter.inc(),
                     ),
                     When(fsm_consume_data_done)(
                         done(1),
@@ -402,12 +398,9 @@ class TestBenches:
         # Config Rom configuration - Begin -----------------------------------------------------------------------------
         tb.EmbeddedCode('\n//Config Rom configuration - Begin')
         config_rom_counter = 0
-        for conf in configs:
-            for i in range(ceil(bits_grn / self.default_bus_width)):
-                config_rom[config_rom_counter].assign(
-                    Int(conf, config_rom.width, 10))
-                conf = conf >> self.default_bus_width
-                config_rom_counter = config_rom_counter + 1
+        for config in rom_config:
+            config_rom[config_rom_counter].assign(Int(int(config, 16), config_rom.width, 10))
+            config_rom_counter = config_rom_counter + 1
         tb.EmbeddedCode('//Config Rom configuration - End')
         # Config Rom configuration - End -------------------------------------------------------------------------------
 
@@ -448,12 +441,11 @@ class TestBenches:
         )
 
         tb.EmbeddedCode('\n//Simulation sector - End')
-        tb.to_verilog('../test_benches/grn_mem_pe_test_bench_' + str(
-            len(self.grn_content.get_nodes_vector())) + '_nodes_' + str(int(pow(2, bits_grn))) + '_states.v')
+        tb.to_verilog(
+            '../test_benches/grn_mem_pe_test_bench_' + str(self.grn_content.get_num_nodes()) + '_nodes.v')
         sim = simulation.Simulator(tb, sim='iverilog')
         rslt = sim.run()
         print(rslt)
-        '''
 
 
 test_benches = TestBenches('../../../../grn_benchmarks/Benchmark_5.txt')

@@ -1,51 +1,91 @@
 from veriloggen import *
-from math import ceil
+from math import ceil, log2
 from grn2dot.grn2dot import Grn2dot
 
-def state(val,size):
-    return format(val,"0%dx"%size)
+
+def to_bytes_string_list(conf_string):
+    list_ret = []
+    for i in range(len(conf_string), 0, -8):
+        list_ret.append(conf_string[i - 8:i])
+    return list_ret
+
+
+def state(val, size):
+    return format(val, "0%dx" % size)
+
 
 def generate_grn_mem_config(grn_content: Grn2dot, default_bus_width=32):
+    # equation config generation step
+    str_mem_conf = ""
+    eq_bits = 0
+    for g in grn_content.get_grn_mem_specifications():
+        eq_bits = eq_bits + int(pow(2, len(g[2])))
+    total_eq_bits = ceil(eq_bits / default_bus_width) * default_bus_width
+    # Finding the true table for each equation
+    for g in grn_content.get_grn_mem_specifications():
+        eq_bits = int(pow(2, len(g[2])))
+        equation = grn_content.get_equations_dict()[g[0]]
+        equation = equation.replace('||', 'or')
+        equation = equation.replace('&&', 'and')
+        equation = equation.replace('!', 'not')
+        idx_counter = 0
+        for node in grn_content.get_nodes_vector():
+            if node in equation:
+                for g1 in grn_content.get_grn_mem_specifications():
+                    if node == g1[0]:
+                        equation = equation.replace(node, ' eq_values[' + str(idx_counter) + '] ')
+                        idx_counter = idx_counter + 1
+                        break
+        eq_values = [False for _ in range(int(log2(eq_bits)))]
+        for i in range(eq_bits):
+            for j in range(len(eq_values)):
+                eq_values[j] = bool((i >> j) & 1)
+            eq_ans = eval(equation)
+            str_mem_conf = str(int(eq_ans)) + str_mem_conf
+        # print(str_mem_conf)
+    if len(str_mem_conf) % 32 > 0:
+        new_str = ""
+        for i in range(len(str_mem_conf) % 32):
+            new_str = new_str + "0"
+        str_mem_conf = new_str + str_mem_conf
+    # print(len(str_mem_conf))
+
+    # config states step
     num_nos = grn_content.get_num_nodes()
-    num_states = 1 << num_nos
-    num_copies = 1
+    num_states = int(1 << num_nos)
+    num_copies = int(1)
     num_states = min(2 ** num_nos, num_states)
 
-    l = int(ceil(num_nos / 32) * 4) * 2
+    l = int(ceil(num_nos / default_bus_width) * 4) * 2
 
-    state_per_copie = int(num_states / num_copies)
+    state_per_copy = int(num_states / num_copies)
     state_rest = int(num_states % num_copies)
     init = 0
     states = [(0, 0, 0) for _ in range(num_copies)]
 
     for c in range(num_copies):
         if state_rest > 0:
-            states[c] = (init, init + state_per_copie, state_per_copie + 1)
-            init += state_per_copie + 1
+            states[c] = (init, init + state_per_copy, state_per_copy + 1)
+            init += state_per_copy + 1
             state_rest -= 1
         else:
-            states[c] = (init, init + state_per_copie - 1, state_per_copie)
-            init += state_per_copie
+            states[c] = (init, init + state_per_copy - 1, state_per_copy)
+            init += state_per_copy
 
+    conf = []
+    mem_config = int(str_mem_conf, 2)
+    bytes_list = to_bytes_string_list(state(mem_config, len(str_mem_conf) / 4))
+    for b in bytes_list:
+        conf.append(b)
     for c in range(num_copies):
         i, e, s = states[c]
-        print("%d,%s,%s,%d\n" % (c, state(c, l), state(num_states, l), s))
-
-    '''
-    config_string = ""
-    init_state = ""
-    end_state = ""
-    eq_bits = 0
-    for g in grn_content.get_grn_mem_specifications():
-        eq_bits = eq_bits + int(pow(2, len(g[2])))
-    total_eq_bits = (ceil(eq_bits / default_bus_width) * default_bus_width)
-
-    for i in range(grn_content.get_nodes_vector()):
-
-
-    #config_bits = (ceil(grn_content.get_num_nodes() / default_bus_width) * default_bus_width * 2) + (
-                ceil(eq_bits / default_bus_width) * default_bus_width)
-    '''
+        bytes_list = to_bytes_string_list(state(i, l))
+        for b in bytes_list:
+            conf.append(b)
+        bytes_list = to_bytes_string_list(state(e, l))
+        for b in bytes_list:
+            conf.append(b)
+    return conf
 
 
 def initialize_regs(module, values=None):

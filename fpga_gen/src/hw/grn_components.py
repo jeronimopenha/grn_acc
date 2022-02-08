@@ -16,6 +16,53 @@ class GrnComponents:
     def __init__(self):
         self.cache = {}
 
+    def create_memory(self):
+        name = 'memory'
+        if name in self.cache.keys():
+            return self.cache[name]
+
+        m = Module(name)
+        init_file = m.Parameter('init_file', 'mem_file.txt')
+        data_width = m.Parameter('data_width', 32)
+        addr_width = m.Parameter('addr_width', 8)
+
+        clk = m.Input('clk')
+
+        we = m.Input('we')
+        re = m.Input('re')
+
+        raddr = m.Input('raddr', addr_width)
+        waddr = m.Input('waddr', addr_width)
+        din = m.Input('din', data_width)
+        dout = m.OutputReg('dout', data_width)
+
+        m.EmbeddedCode('(* ramstyle = "AUTO, no_rw_check" *) reg  [data_width-1:0] mem[0:2**addr_width-1];')
+        m.EmbeddedCode('/*')
+        mem = m.Reg('mem', data_width, Power(2, addr_width))
+        m.EmbeddedCode('*/')
+
+        m.Always(Posedge(clk))(
+            If(we)(
+                mem[waddr](din)
+            ),
+            If(re)(
+                dout(mem[raddr])
+            )
+        )
+        m.EmbeddedCode('//synthesis translate_off')
+
+        i = m.Integer('i')
+        m.Initial(
+            dout(0),
+            For(i(0), i < Power(2, addr_width), i.inc())(
+                mem[i](0)
+            ),
+            Systask('readmemh', init_file, mem)
+        )
+        m.EmbeddedCode('//synthesis translate_on')
+        self.cache[name] = m
+        return m
+
     def create_fifo(self):
         name = 'fifo'
         if name in self.cache.keys():
@@ -164,11 +211,12 @@ class GrnComponents:
         flag_first_it = m.Reg('flag_first_it')
         transient_counter = m.Reg('transient_counter', 32)
         period_counter = m.Reg('period_counter', 32)
-        bits = (len(nodes) * 2) + 32 + 32
-        data_write_width = ceil(bits / 32) * 32
-        qty_data = data_write_width / 32
+        bits = (ceil(len(nodes) / 32) * 32 * 2) + 32 + 32
+        add_bit_states = ceil(len(nodes) / 32) * 32 - initial_state.width
+        data_write_width = bits
+        qty_data = data_write_width // 32
         data_to_write = m.Reg('data_to_write', data_write_width)
-        write_counter = m.Reg('write_counter', ceil(log2(data_write_width / 32)))
+        write_counter = m.Reg('write_counter', ceil(log2(qty_data)))
         m.EmbeddedCode("")
 
         # State machine to control the grn algorithm execution
@@ -230,12 +278,24 @@ class GrnComponents:
                         ),
                     ),
                     When(fsm_naive_prepare_to_write)(
-                        # TODO
                         data_to_write(
-                            Cat(exec_state, actual_state_s1, transient_counter,
-                                period_counter) if bits == data_write_width else Cat(
-                                Int(0, (data_write_width - bits), 2), exec_state, actual_state_s1, transient_counter,
-                                period_counter)),
+                            Cat(
+                                Int(0, (add_bit_states), 2),
+                                exec_state,
+                                Int(0, (add_bit_states), 2),
+                                actual_state_s1,
+                                transient_counter,
+                                period_counter
+                            )
+                            if add_bit_states > 0
+                            else
+                            Cat(
+                                exec_state,
+                                actual_state_s1,
+                                transient_counter,
+                                period_counter
+                            )
+                        ),
                         fsm_naive(fsm_naive_write),
                         write_counter(0),
                     ),
@@ -573,9 +633,10 @@ class GrnComponents:
         flag_first_it = m.Reg('flag_first_it')
         transient_counter = m.Reg('transient_counter', 32)
         period_counter = m.Reg('period_counter', 32)
-        bits = (grn_content.get_num_nodes() * 2) + 32 + 32
-        data_write_width = ceil(bits / 32) * 32
-        qty_data = data_write_width / 32
+        bits = (ceil(grn_content.get_num_nodes() / 32) * 32 * 2) + 32 + 32
+        add_bit_states = ceil(grn_content.get_num_nodes() / 32) * 32 - initial_state.width
+        data_write_width = bits
+        qty_data = data_write_width // 32
         data_to_write = m.Reg('data_to_write', data_write_width)
         write_counter = m.Reg('write_counter', ceil(log2(data_write_width / 32)))
 
@@ -653,12 +714,24 @@ class GrnComponents:
                         ),
                     ),
                     When(fsm_mem_prepare_to_write)(
-                        # TODO
                         data_to_write(
-                            Cat(exec_state, actual_state_s1, transient_counter,
-                                period_counter) if bits == data_write_width else Cat(
-                                Int(0, (data_write_width - bits), 2), exec_state, actual_state_s1, transient_counter,
-                                period_counter)),
+                            Cat(
+                                Int(0, (add_bit_states), 2),
+                                exec_state,
+                                Int(0, (add_bit_states), 2),
+                                actual_state_s1,
+                                transient_counter,
+                                period_counter
+                            )
+                            if add_bit_states > 0
+                            else
+                            Cat(
+                                exec_state,
+                                actual_state_s1,
+                                transient_counter,
+                                period_counter
+                            )
+                        ),
                         fsm_mem(fsm_mem_write),
                         write_counter(0),
                     ),
@@ -941,7 +1014,8 @@ class GrnComponents:
         return m
 
 
-grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
+grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_5.txt")
 grn = GrnComponents()
-grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
+grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_pe_5.v")
+# grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

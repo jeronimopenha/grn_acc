@@ -7,11 +7,7 @@
     <list default="true" id="e255efbf-7af8-48a4-b92e-d7c91ba320b5" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/a.out" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/a.out" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/hw/grn_components.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/grn_components.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/testbenches.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/testbenches.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/uut.vcd" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/uut.vcd" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -125,7 +121,7 @@
       <workItem from="1644195970979" duration="4133000" />
       <workItem from="1644279177942" duration="5749000" />
       <workItem from="1644324379599" duration="3890000" />
-      <workItem from="1644328961884" duration="12625000" />
+      <workItem from="1644328961884" duration="13646000" />
     </task>
     <servers />
   </component>
@@ -159,7 +155,7 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/fpga_gen$grn_components.coverage" NAME="grn_components Coverage Results" MODIFIED="1644346033572" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/hw" />
+    <SUITE FILE_PATH="coverage/fpga_gen$grn_components.coverage" NAME="grn_components Coverage Results" MODIFIED="1644346570140" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/hw" />
     <SUITE FILE_PATH="coverage/fpga_gen$utils.coverage" NAME="utils Coverage Results" MODIFIED="1644335122320" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/hw" />
     <SUITE FILE_PATH="coverage/fpga_gen$testbenches.coverage" NAME="testbenches Coverage Results" MODIFIED="1644344663442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/hw" />
   </component>

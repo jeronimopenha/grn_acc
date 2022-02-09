@@ -88,7 +88,10 @@ class GrnComponents:
 
         read_pointer = m.Reg('read_pointer', FIFO_DEPTH_BITS)
         write_pointer = m.Reg('write_pointer', FIFO_DEPTH_BITS)
+        m.EmbeddedCode('(* ramstyle = "AUTO, no_rw_check" *) reg  [FIFO_WIDTH-1:0] mem[0:2**FIFO_DEPTH_BITS-1];')
+        m.EmbeddedCode("\*")
         mem = m.Reg('mem', FIFO_WIDTH, Power(2, FIFO_DEPTH_BITS))
+        m.EmbeddedCode("*\")
 
         m.Always(Posedge(clk))(
             If(rst)(
@@ -1020,6 +1023,6 @@ class GrnComponents:
 
 grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
 grn = GrnComponents()
-grn.create_grn_mem_core(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
+grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
 # grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

@@ -450,4 +450,4 @@ class TestBenches:
 
 test_benches = TestBenches('../../../../grn_benchmarks/Benchmark_5.txt')
 test_benches.create_grn_mem_pe_test_bench_hw()
-# test_benches.create_grn_derrida_plot_test_bench_cpu(0, 31)
+

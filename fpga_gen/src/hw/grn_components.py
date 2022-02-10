@@ -89,9 +89,9 @@ class GrnComponents:
         read_pointer = m.Reg('read_pointer', FIFO_DEPTH_BITS)
         write_pointer = m.Reg('write_pointer', FIFO_DEPTH_BITS)
         m.EmbeddedCode('(* ramstyle = "AUTO, no_rw_check" *) reg  [FIFO_WIDTH-1:0] mem[0:2**FIFO_DEPTH_BITS-1];')
-        m.EmbeddedCode("\*")
+        m.EmbeddedCode("/*")
         mem = m.Reg('mem', FIFO_WIDTH, Power(2, FIFO_DEPTH_BITS))
-        m.EmbeddedCode("*\")
+        m.EmbeddedCode("*/")
 
         m.Always(Posedge(clk))(
             If(rst)(

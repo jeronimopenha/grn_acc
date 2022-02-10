@@ -2,17 +2,16 @@ import argparse
 import os
 import sys
 import traceback
+from veriloggen import *
+from math import ceil
+
+from src.hw.create_acc_axi_interface import AccAXIInterface
+from src.hw.grn_accelerator import GrnAccelerator
+from src.hw.utils import commands_getoutput
 
 p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not p in sys.path:
     sys.path.insert(0, p)
-
-from veriloggen import *
-
-# from src.hw.grn_derrida_plot_accelerator import GrnDerridaPlotAccelerator
-# from src.hw.create_acc_axi_interface import AccAXIInterface
-# from src.hw.utils import commands_getoutput
-from math import ceil
 
 
 def write_file(name, string):
@@ -26,6 +25,7 @@ def create_args():
     parser.add_argument('-g', '--grn', help='GRN description file', type=str)
     parser.add_argument('-b', '--blocks', help='Number of blocks', type=int)
     parser.add_argument('-t', '--threads', help='Number of threads per block', type=int)
+    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with mem', type=int)
     parser.add_argument('-n', '--name', help='Project name', type=str, default='a.prj')
     parser.add_argument('-o', '--output', help='Project location', type=str, default='.')
 
@@ -33,8 +33,7 @@ def create_args():
 
 
 def create_project(GRN_root, grn_file, blocks, threads, name, output_path):
-    '''
-    grnacc = GrnDerridaPlotAccelerator(grn_file, blocks, threads)
+    grnacc = GrnAccelerator(grn_file, blocks, threads)
     acc_axi = AccAXIInterface(grnacc)
 
     template_path = GRN_root + '/resources/template.prj'
@@ -66,8 +65,6 @@ def create_project(GRN_root, grn_file, blocks, threads, name, output_path):
     write_file(hw_path + 'synthesis/prj_name', name)
     write_file(hw_path + 'simulate/vitis_config.txt', conn_str)
     write_file(hw_path + 'synthesis/vitis_config.txt', conn_str)
-    '''
-    pass
 
 
 def main():

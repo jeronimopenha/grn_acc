@@ -1,5 +1,6 @@
 from veriloggen import *
 from math import ceil, log2
+import subprocess
 from grn2dot.grn2dot import Grn2dot
 
 
@@ -118,3 +119,14 @@ def initialize_regs(module, values=None):
                 s.add(genfor)
             else:
                 s.add(r[1](value))
+
+def commands_getoutput(cmd):
+    byte_out = subprocess.check_output(cmd.split())
+    str_out = byte_out.decode("utf-8")
+    return str_out
+
+def bits(n):
+    if n < 2:
+        return 1
+    else:
+        return int(ceil(log2(n)))

@@ -5,14 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e255efbf-7af8-48a4-b92e-d7c91ba320b5" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/create_report.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/hw/grn_accelerator.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/hw/grn_aws.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/grn_components.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/grn_components.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hw/testbenches.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/testbenches.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/create_project.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/create_project.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/hw/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/hw/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -163,6 +159,7 @@
       <workItem from="1644409912219" duration="7215000" />
       <workItem from="1644449373267" duration="846000" />
       <workItem from="1644453425042" duration="5368000" />
+      <workItem from="1644492104676" duration="1217000" />
     </task>
     <servers />
   </component>

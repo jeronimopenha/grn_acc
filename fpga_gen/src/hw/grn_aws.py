@@ -37,21 +37,22 @@ class GrnAws:
         grn_aws_read_data = m.Input('grn_aws_read_data', self.default_bus_width)
 
         grn_aws_available_write = m.Input('grn_aws_available_write')
-        grn_aws_request_write = m.Output('grn_aws_request_write')
-        grn_aws_write_data = m.Output('grn_aws_write_data', self.default_bus_width)
+        grn_aws_request_write = m.OutputReg('grn_aws_request_write')
+        grn_aws_write_data = m.OutputReg('grn_aws_write_data', self.default_bus_width)
 
-        # TODO
         grn_aws_done = m.Output('grn_aws_done')
         # interface I/O interface - End --------------------------------------------------------------------------------
+
+        grn_aws_done.assign(Uand(Cat(grn_aws_done_wr_data, grn_aws_done_rd_data)))
 
         # grn pe instantiation regs and wires - Begin ------------------------------------------------------------
         m.EmbeddedCode('\n// grn pe instantiation regs and wires - Begin')
         grn_pe_config_output_done = m.Wire('grn_pe_config_output_done', self.copies_qty)
         grn_pe_config_output_valid = m.Wire('grn_pe_config_output_valid', self.copies_qty)
-        grn_pe_config_output = m.Wire('grn_pe_config_output', self.default_bus_width * self.copies_qty)
+        grn_pe_config_output = m.Wire('grn_pe_config_output', self.default_bus_width, self.copies_qty)
         grn_pe_output_read_enable = m.Wire('grn_pe_output_read_enable', self.copies_qty)
         grn_pe_output_valid = m.Wire('grn_pe_output_valid', self.copies_qty)
-        grn_pe_output_data = m.Wire('grn_pe_output_data', self.default_bus_width * self.copies_qty)
+        grn_pe_output_data = m.Wire('grn_pe_output_data', self.default_bus_width, self.copies_qty)
         grn_pe_output_available = m.Wire('grn_pe_output_available', self.copies_qty)
         m.EmbeddedCode('// grn pe instantiation regs and wires - end')
         # grn pe instantiation regs and wires - end --------------------------------------------------
@@ -116,7 +117,6 @@ class GrnAws:
         m.EmbeddedCode('\n//Data Consumer - Begin')
         bits = (ceil(self.grn_content.get_num_nodes() / self.default_bus_width) * self.default_bus_width * 2) + 32 + 32
         qty_data = bits // 32
-        data = m.Reg('data', self.default_bus_width)
         consume_rd_enable = m.Reg('consume_rd_enable')
         consume_rd_available = m.Wire('consume_rd_available')
         consume_rd_valid = m.Wire('consume_rd_valid')
@@ -134,6 +134,7 @@ class GrnAws:
                 fsm_consume_data(fsm_consume_data_rq_rd),
             ).Else(
                 consume_rd_enable(0),
+                grn_aws_request_write(0),
                 Case(fsm_consume_data)(
                     When(fsm_consume_data_rq_rd)(
                         If(consume_rd_available)(
@@ -143,14 +144,13 @@ class GrnAws:
                     ),
                     When(fsm_consume_data_rd)(
                         If(consume_rd_valid)(
-                            grn_aws_request_write(1),
-                            data(consume_rd_data),
+                            grn_aws_write_data(consume_rd_data),
                             fsm_consume_data(fsm_consume_data_wr),
                         )
                     ),
                     When(fsm_consume_data_wr)(
                         If(grn_aws_available_write)(
-                            grn_aws_request_write(0),
+                            grn_aws_request_write(1),
                             fsm_consume_data(fsm_consume_data_rq_rd),
                         ),
                     ),
@@ -162,9 +162,9 @@ class GrnAws:
 
         # PE modules instantiation - Begin -----------------------------------------------------------------------------
         m.EmbeddedCode('\n//Assigns to the last PE')
-        grn_pe_output_valid[self.copies_qty-1].assign(0)
-        grn_pe_output_data[self.copies_qty-1].assign(0)
-        grn_pe_output_available[self.copies_qty-1].assign(0)
+        grn_pe_output_valid[self.copies_qty - 1].assign(0)
+        grn_pe_output_data[self.copies_qty - 1].assign(0)
+        grn_pe_output_available[self.copies_qty - 1].assign(0)
 
         m.EmbeddedCode('\n//PE modules instantiation - Begin')
         if self.pe_type == 0:
@@ -197,7 +197,7 @@ class GrnAws:
                 con.append(('pe_output_available', consume_rd_available))
             else:
                 con.append(('config_input_done', grn_pe_config_output_done[i - 1]))
-                con.append(('config_input_valid', grn_pe_output_valid[i - 1]))
+                con.append(('config_input_valid', grn_pe_config_output_valid[i - 1]))
                 con.append(('config_input', grn_pe_config_output[i - 1]))
 
                 con.append(('config_output_done', grn_pe_config_output_done[i]))
@@ -222,9 +222,3 @@ class GrnAws:
         initialize_regs(m)
         # Simulation - End ---------------------------------------------------------------------------------------------
         return m
-
-
-grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_5.txt")
-grn = GrnAws()
-g = grn.get(grn_content, copies_qty=2)
-g.to_verilog("../test_benches/" + g.name + ".v")

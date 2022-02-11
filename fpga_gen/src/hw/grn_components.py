@@ -95,49 +95,49 @@ class GrnComponents:
 
         m.Always(Posedge(clk))(
             If(rst)(
-                empty(Int(1, 1, 2)),
-                almostempty(Int(1, 1, 2)),
-                full(Int(0, 1, 2)),
-                almostfull(Int(0, 1, 2)),
+                empty(1),
+                almostempty(1),
+                full(0),
+                almostfull(0),
                 read_pointer(0),
                 write_pointer(0),
                 data_count(0)
             ).Else(
                 Case(Cat(write_enable, output_read_enable))(
-                    When(Int(3, 2, 2))(
+                    When(3)(
                         read_pointer(read_pointer + 1),
                         write_pointer(write_pointer + 1),
                     ),
-                    When(Int(2, 2, 2))(
+                    When(2)(
                         If(~full)(
                             write_pointer(write_pointer + 1),
                             data_count(data_count + 1),
-                            empty(Int(0, 1, 2)),
+                            empty(0),
                             If(data_count == (FIFO_ALMOSTEMPTY_THRESHOLD - 1))(
-                                almostempty(Int(0, 1, 2))
+                                almostempty(0)
                             ),
                             If(data_count == Power(2, FIFO_DEPTH_BITS) - 1)(
-                                full(Int(1, 1, 2))
+                                full(1)
                             ),
                             If(data_count == (FIFO_ALMOSTFULL_THRESHOLD - 1))(
-                                almostfull(Int(1, 1, 2))
+                                almostfull(1)
                             )
                         )
 
                     ),
-                    When(Int(1, 2, 2))(
+                    When(1)(
                         If(~empty)(
                             read_pointer(read_pointer + 1),
                             data_count(data_count - 1),
-                            full(Int(0, 1, 2)),
+                            full(0),
                             If(data_count == FIFO_ALMOSTFULL_THRESHOLD)(
-                                almostfull(Int(0, 1, 2))
+                                almostfull(0)
                             ),
                             If(data_count == 1)(
-                                empty(Int(1, 1, 2))
+                                empty(1)
                             ),
                             If(data_count == FIFO_ALMOSTEMPTY_THRESHOLD)(
-                                almostempty(Int(1, 1, 2))
+                                almostempty(1)
                             )
 
                         )
@@ -147,15 +147,15 @@ class GrnComponents:
         )
         m.Always(Posedge(clk))(
             If(rst)(
-                output_valid(Int(0, 1, 2))
+                output_valid(0)
             ).Else(
-                output_valid(Int(0, 1, 2)),
-                If(write_enable == Int(1, 1, 2))(
+                output_valid(0),
+                If(write_enable == 1)(
                     mem[write_pointer](input_data)
                 ),
-                If(output_read_enable == Int(1, 1, 2))(
+                If(output_read_enable == 1)(
                     output_data(mem[read_pointer]),
-                    output_valid(Int(1, 1, 2))
+                    output_valid(1)
                 )
             )
         )
@@ -336,7 +336,7 @@ class GrnComponents:
         con = [('clk', clk), ('rst', rst), ('write_enable', fifo_write_enable), ('input_data', fifo_input_data),
                ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
                ('empty', fifo_empty), ('almostfull', fifo_full)]
-        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
+        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'grn_naive_core_output_fifo', par, con)
 
         # Here are the GRN equations to be used in the core execution are created
@@ -441,9 +441,9 @@ class GrnComponents:
         fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 4)
         fsm_pe_jo_wr_pe = m.Localparam('fsm_pe_jo_wr_pe', 5)
 
-        bits = (len(nodes) * 2) + 32 + 32
-        data_write_width = ceil(bits / 32) * 32
-        qty_data = data_write_width / 32
+        bits = (ceil(len(nodes) / default_bus_width) * default_bus_width * 2) + 32 + 32
+        data_write_width = bits
+        qty_data = data_write_width // 32
         rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(data_write_width / 32)))
 
         # Fifo out wires and regs
@@ -509,7 +509,7 @@ class GrnComponents:
                         )
                     ),
                     When(fsm_pe_jo_rd_grn)(
-                        If(Uand(Cat(grn_output_available, ~fifo_out_full)))(
+                        If(AndList(grn_output_available, ~fifo_out_full))(
                             grn_output_read_enable(1),
                             fsm_pe_jo(fsm_pe_jo_wr_grn)
                         )
@@ -517,7 +517,7 @@ class GrnComponents:
                     When(fsm_pe_jo_wr_grn)(
                         If(grn_output_valid)(
                             fsm_pe_jo(fsm_pe_jo_rd_grn),
-                            If(rd_wr_counter == int(qty_data - 1))(
+                            If(rd_wr_counter == qty_data - 1)(
                                 fsm_pe_jo(fsm_pe_jo_look_pe)
                             ),
                             fifo_out_input_data(grn_output_data),
@@ -533,7 +533,7 @@ class GrnComponents:
                         )
                     ),
                     When(fsm_pe_jo_rd_pe)(
-                        If(Uand(Cat(pe_bypass_available, ~fifo_out_full)))(
+                        If(AndList(pe_bypass_available, ~fifo_out_full))(
                             pe_bypass_read_enable(1),
                             fsm_pe_jo(fsm_pe_jo_wr_pe)
                         )
@@ -541,7 +541,7 @@ class GrnComponents:
                     When(fsm_pe_jo_wr_pe)(
                         If(pe_bypass_valid)(
                             fsm_pe_jo(fsm_pe_jo_rd_pe),
-                            If(rd_wr_counter == int(qty_data - 1))(
+                            If(rd_wr_counter == qty_data - 1)(
                                 fsm_pe_jo(fsm_pe_jo_look_grn)
                             ),
                             fifo_out_input_data(pe_bypass_data),
@@ -574,7 +574,7 @@ class GrnComponents:
         con = [('clk', clk), ('rst', rst), ('write_enable', fifo_out_write_enable), ('input_data', fifo_out_input_data),
                ('output_read_enable', pe_output_read_enable), ('output_valid', pe_output_valid),
                ('output_data', pe_output_data), ('empty', fifo_out_empty), ('almostfull', fifo_out_full)]
-        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
+        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'pe_naive_fifo_out', par, con)
 
         initialize_regs(m)
@@ -783,7 +783,7 @@ class GrnComponents:
         con = [('clk', clk), ('rst', rst), ('write_enable', fifo_write_enable), ('input_data', fifo_input_data),
                ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
                ('empty', fifo_empty), ('almostfull', fifo_full)]
-        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
+        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'grn_mem_core_output_fifo', par, con)
 
         initialize_regs(m)
@@ -1014,15 +1014,9 @@ class GrnComponents:
         con = [('clk', clk), ('rst', rst), ('write_enable', fifo_out_write_enable), ('input_data', fifo_out_input_data),
                ('output_read_enable', pe_output_read_enable), ('output_valid', pe_output_valid),
                ('output_data', pe_output_data), ('empty', fifo_out_empty), ('almostfull', fifo_out_full)]
-        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(3 * qty_data)))]
+        par = [('FIFO_WIDTH', default_bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'pe_mem_fifo_out', par, con)
 
         initialize_regs(m)
         self.cache[name] = m
         return m
-
-grn_content = Grn2dot("../../../../grn_benchmarks/Benchmark_70.txt")
-grn = GrnComponents()
-grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
-# grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe_70.v")
-# grn.create_grn_mem_pe(grn_content).to_verilog("../test_benches/grn_mem_pe.v")

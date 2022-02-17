@@ -1,51 +1,43 @@
 import argparse
-import os
-import sys
 import traceback
 
-from math import ceil
+from hw.utils import *
 
 
 def create_args():
     parser = argparse.ArgumentParser('create_grn_input -h')
+    parser.add_argument('-g', '--grn', help='GRN description file', type=str)
     parser.add_argument('-s', '--number', help='Number of states', type=str)
-    parser.add_argument('-n', '--num_nos', help='Number of nodes', type=int)
     parser.add_argument('-c', '--copies', help='Number of copies', type=str)
+    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with memory', type=str)
     parser.add_argument('-o', '--output', help='Output file', type=str, default='.')
 
     return parser.parse_args()
 
 
-def state(val, size):
-    return format(val, "0%dx" % size)
-
-
-def create_output(num_states, num_nos, num_copies, output):
-    num_states = int(eval(num_states))
-    num_copies = int(eval(num_copies))
-    num_states = min(2 ** num_nos, num_states)
-
-    l = int(ceil(num_nos / 32) * 4) * 2
-
-    state_per_copie = int(num_states / num_copies)
-    state_rest = int(num_states % num_copies)
-    init = 0
-    states = [(0, 0, 0) for _ in range(num_copies)]
-
-    for c in range(num_copies):
-        if state_rest > 0:
-            states[c] = (init, init + state_per_copie, state_per_copie + 1)
-            init += state_per_copie + 1
-            state_rest -= 1
-        else:
-            states[c] = (init, init + state_per_copie - 1, state_per_copie)
-            init += state_per_copie
+def create_output(grn_file, pe_type, num_states, num_copies, output):
+    grn_content = Grn2dot(grn_file)
+    eq_conf_string = ""
+    if pe_type == '0':
+        conf = generate_grn_naive_config(grn_content, copies_qty=num_copies, states=num_states)
+    elif pe_type == '1':
+        eq_conf_string = generate_eq_mem_config(grn_content)
+        conf = generate_grn_mem_config(grn_content, copies_qty=num_copies, states=num_states)
+    else:
+        conf = generate_grn_naive_config(grn_content, copies_qty=num_copies, states=num_states)
 
     with open(output, 'w') as f:
-        for c in range(num_copies):
-            i, e, s = states[c]
-            f.write("%d,%s,%s,%d\n" % (c, state(c, l), state(num_states, l), s))
+        for c in range(len(conf)):
+            f.write("%d,%s,%s,%d\n" % (conf[c][0], conf[c][1], conf[c][2], conf[c][3]))
         f.close()
+    if pe_type == '1':
+        with open(output + "_mem", 'w') as f:
+            bytes_list = to_bytes_string_list(eq_conf_string)
+            wr_str = ""
+            for b in bytes_list:
+                wr_str = state(int(b, 2), 2) + wr_str
+            f.write("%s\n" % wr_str)
+            f.close()
 
 
 def main():
@@ -55,8 +47,8 @@ def main():
     if args.output == '.':
         args.output = running_path
 
-    if args.number and args.num_nos and args.copies and args.output:
-        create_output(args.number, args.num_nos, args.copies, args.output)
+    if args.grn and args.number and args.pe_type and args.copies and args.output:
+        create_output(args.grn, args.pe_type, args.number, args.copies, args.output)
     else:
         msg = 'Missing parameters. Run create_grn_input -h to see all parameters needed'
         raise Exception(msg)

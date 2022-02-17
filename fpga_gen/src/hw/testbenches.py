@@ -5,8 +5,8 @@ from grn_components import GrnComponents
 from grn2dot.grn2dot import Grn2dot
 from math import pow, ceil, log2, floor
 
-from src.hw.grn_aws import GrnAws
-from src.hw.utils import initialize_regs, generate_grn_mem_config, generate_grn_naive_config
+from hw.grn_aws import GrnAws
+from hw.utils import initialize_regs, generate_grn_mem_config_test_bench, generate_grn_naive_config
 
 p = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if not p in sys.path:
@@ -15,12 +15,13 @@ if not p in sys.path:
 
 class TestBenches:
 
-    def __init__(self, grn_arch_file, pe_type=0, copies_qty=1, default_bus_width=32):
+    def __init__(self, grn_arch_file, pe_type=0, copies_qty=1, states=1, default_bus_width=32):
         self.grn_arch_file = grn_arch_file
         self.default_bus_width = default_bus_width
         self.grn_content = Grn2dot(grn_arch_file)
         self.pe_type = pe_type
         self.copies_qty = copies_qty
+        self.states = states
 
     def create_grn_naive_pe_test_bench_hw(self):
         # TEST BENCH MODULE --------------------------------------------------------------------------------------------
@@ -276,7 +277,7 @@ class TestBenches:
 
         # Config Rom configuration regs and wires - Begin --------------------------------------------------------------
         tb.EmbeddedCode('\n//Config Rom configuration regs and wires - Begin')
-        rom_config = generate_grn_mem_config(self.grn_content)
+        rom_config = generate_grn_mem_config_test_bench(self.grn_content)
         qty_conf = len(rom_config)
         config_counter = tb.Reg('config_counter', ceil(log2(qty_conf)) + 1)
         config_rom = tb.Wire('config_rom', self.default_bus_width, qty_conf)
@@ -453,7 +454,13 @@ class TestBenches:
 
     def create_grn_acc_testbench(self):
         # TEST BENCH MODULE --------------------------------------------------------------------------------------------
-        m = Module('test_bench_grn_acc_' + str(self.copies_qty))
+        if self.pe_type == 0:
+            sufix = "_naive"
+        elif self.pe_type == 1:
+            sufix = "_mem"
+        else:
+            sufix = "_naive"
+        m = Module('test_bench_grn_acc_' + str(self.copies_qty) + sufix)
 
         m.EmbeddedCode('\n//Standar I/O signals - Begin')
         clk = m.Reg('clk')
@@ -481,11 +488,11 @@ class TestBenches:
         # Config Rom configuration regs and wires - Begin --------------------------------------------------------------
         m.EmbeddedCode('\n//Config Rom configuration regs and wires - Begin')
         if self.pe_type == 0:
-            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty)
+            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty, self.states)
         elif self.pe_type == 1:
-            rom_data = generate_grn_mem_config(self.grn_content)
+            rom_data = generate_grn_mem_config_test_bench(self.grn_content, self.copies_qty, self.states)
         else:
-            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty)
+            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty, self.states)
 
         qty_conf = len(rom_data)
 
@@ -544,10 +551,12 @@ class TestBenches:
         m.EmbeddedCode('//Data Producer - End')
         # Data Producer - End ------------------------------------------------------------------------------------------
 
+        # Data Consumer - Begin ----------------------------------------------------------------------------------------
+        m.EmbeddedCode('\n//Data Consumer - Begin')
         bits = (ceil(self.grn_content.get_num_nodes() / 32) * 32 * 2) + 32 + 32
         data_read_width = bits
         qty_data = data_read_width // 32
-        max_data = floor(pow(2, len(self.grn_content.get_nodes_vector())))
+        max_data = self.states
         max_data_counter = m.Reg('max_data_counter', floor(log2(pow(2, len(self.grn_content.get_nodes_vector())))) + 1)
         rd_counter = m.Reg('rd_counter', ceil(log2(qty_data)) + 1)
         data = m.Reg('data', data_read_width)
@@ -606,38 +615,9 @@ class TestBenches:
                 ),
             )
         )
-
-        '''
-        # Data Consumer - Begin ----------------------------------------------------------------------------------------
-        m.EmbeddedCode('\n//Data Consumer - Begin')
-        m.Always(Posedge(clk))(
-            If(rst)(
-                rd_counter(0),
-                max_data_counter(0),
-                grn_aws_available_write(0),
-            ).Else(
-                If(~grn_aws_done)(
-                    grn_aws_available_write(1),
-                ),
-                If(AndList(grn_aws_request_write, ~grn_aws_done))(
-                    grn_aws_available_write(0),
-                    data(Cat(grn_aws_write_data, data[self.default_bus_width:data.width])),
-                    If(rd_counter == int(qty_data))(
-                        Display("i_s: %h s_s: %h t: %h p: %h", i_state, s_state, transient, period),
-                        max_data_counter.inc(),
-                        rd_counter(1),
-                    ).Else(
-                        rd_counter.inc(),
-                    ),
-                ),
-                If(max_data_counter == max_data)(
-                    grn_aws_done_wr_data(1),
-                )
-            )
-        )
         m.EmbeddedCode('//Data Consumer - Begin')
         # Data Consumer - End ------------------------------------------------------------------------------------------
-        '''
+
         # grn pe mem instantiation - Begin -----------------------------------------------------------------
         grnaws = GrnAws().get(self.grn_content, self.pe_type, self.copies_qty, self.default_bus_width)
         con = [('clk', clk), ('rst', rst), ('start', start), ('grn_aws_done_rd_data', grn_aws_done_rd_data),
@@ -671,12 +651,12 @@ class TestBenches:
 
         m.EmbeddedCode('\n//Simulation sector - End')
         m.to_verilog('../test_benches/grn_mem_pe_test_bench_' + str(self.grn_content.get_num_nodes()) + '_nodes_' + str(
-            self.copies_qty) + '_qty.v')
+            self.copies_qty) + '_qty' + str(self.states) + '_states.v')
         sim = simulation.Simulator(m, sim='iverilog')
         rslt = sim.run()
         print(rslt)
 
 
-grn_file = '../../../../grn_benchmarks/Benchmark_5.txt'
-test_benches = TestBenches(grn_file, copies_qty=4)
+grn_file = '../../../../grn_benchmarks/Benchmark_70.txt'
+test_benches = TestBenches(grn_file, copies_qty=80, states=80, pe_type=1)
 test_benches.create_grn_acc_testbench()

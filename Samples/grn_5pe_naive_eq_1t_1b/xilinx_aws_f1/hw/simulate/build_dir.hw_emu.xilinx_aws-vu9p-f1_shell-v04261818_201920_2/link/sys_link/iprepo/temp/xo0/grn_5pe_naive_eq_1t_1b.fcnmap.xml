@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xd:repository xmlns:xd="http://www.xilinx.com/xd">
+    <xd:fcnMap xd:fcnName="grn_5pe_naive_eq_1t_1b" xd:type="RTLKernel" xd:clockId="0" xd:flow="explicit" xd:componentRef="grn_5pe_naive_eq_1t_1b">
+        <xd:interrupt xd:busInterfaceRef="interrupt"/>
+        <xd:ctrlReg xd:busInterface="s_axi_control" xd:portInterfaceType="axilite" xd:name="control" xd:type="ap_ctrl_hs" xd:offset="0x0"/>
+        <xd:arg xd:name="in_s0" xd:swRootName="in_s0" xd:dataWidth="32" xd:offset="0x10" xd:portInterfaceType="axilite" xd:direction="in" xd:id="0" xd:busInterfaceRef="s_axi_control"/>
+        <xd:arg xd:name="out_s0" xd:swRootName="out_s0" xd:dataWidth="32" xd:offset="0x18" xd:portInterfaceType="axilite" xd:direction="in" xd:id="1" xd:busInterfaceRef="s_axi_control"/>
+        <xd:arg xd:name="in0" xd:swRootName="in0" xd:dataWidth="64" xd:offset="0x20" xd:portInterfaceType="axilite" xd:direction="in" xd:id="2" xd:busInterfaceRef="s_axi_control" xd:aximmMasterRef="m00_axi" xd:aximmMasterDirection="inout" xd:aximmMasterDataWidth="32"/>
+        <xd:arg xd:name="out0" xd:swRootName="out0" xd:dataWidth="64" xd:offset="0x2c" xd:portInterfaceType="axilite" xd:direction="in" xd:id="3" xd:busInterfaceRef="s_axi_control" xd:aximmMasterRef="m00_axi" xd:aximmMasterDirection="inout" xd:aximmMasterDataWidth="32"/>
+    </xd:fcnMap>
+</xd:repository>

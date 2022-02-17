@@ -2,8 +2,9 @@ import math
 from veriloggen import *
 from grn2dot.grn2dot import Grn2dot
 from math import ceil, pow, log2
-from grn_aws import GrnAws
-from src.hw.utils import initialize_regs
+
+from hw.grn_aws import GrnAws
+from hw.utils import initialize_regs
 
 
 class GrnAccelerator:
@@ -76,14 +77,14 @@ class GrnAccelerator:
                 ('clk', clk),
                 ('rst', rst),
                 ('start', start_reg),
-                ('grn_done_rd_data', acc_user_done_rd_data[i]),
-                ('grn_done_wr_data', acc_user_done_wr_data[i]),
-                ('grn_request_read', acc_user_request_read[i]),
-                ('grn_read_data_valid', acc_user_read_data_valid[i]),
-                ('grn_read_data', acc_user_read_data[i * self.acc_data_in_width:(i + 1) * self.acc_data_in_width]),
-                ('grn_available_write', acc_user_available_write[i]),
-                ('grn_request_write', acc_user_request_write[i]),
-                ('grn_write_data', acc_user_write_data[i * self.acc_data_out_width:(i + 1) * self.acc_data_out_width]),
+                ('grn_aws_done_rd_data', acc_user_done_rd_data[i]),
+                ('grn_aws_done_wr_data', acc_user_done_wr_data[i]),
+                ('grn_aws_request_read', acc_user_request_read[i]),
+                ('grn_aws_read_data_valid', acc_user_read_data_valid[i]),
+                ('grn_aws_read_data', acc_user_read_data[i * self.acc_data_in_width:(i + 1) * self.acc_data_in_width]),
+                ('grn_aws_available_write', acc_user_available_write[i]),
+                ('grn_aws_request_write', acc_user_request_write[i]),
+                ('grn_aws_write_data', acc_user_write_data[i * self.acc_data_out_width:(i + 1) * self.acc_data_out_width]),
                 ('grn_aws_done', grn_aws_done[i])]
             m.Instance(grn_aws, grn_aws.name + "_" + str(i), par, con)
 

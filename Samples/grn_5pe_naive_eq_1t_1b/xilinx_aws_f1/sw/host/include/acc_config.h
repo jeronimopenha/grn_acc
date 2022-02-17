@@ -1,0 +1,7 @@
+#define NUM_COPIES_PER_CHANNEL (1)
+#define NUM_CHANNELS (1)
+#define NUM_BLOCKS (1)
+#define NUM_THREADS (1)
+#define NUM_NOS (5)
+#define STATE_SIZE_WORDS (1)
+#define ACC_DATA_BYTES (4)

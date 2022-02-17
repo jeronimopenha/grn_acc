@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Root VersionMajor="6" VersionMinor="0" SoftwareVersionMajor="2020" SoftwareVersionMinor="2" IpCache="no">
+  <IpCaches/>
+  <Kernels>
+    <Kernel Name="grn_5pe_naive_eq_1t_1b" Dir="grn_5pe_naive_eq_1t_1b" IP="ip_repo/xilinx_com_RTLKernel_grn_5pe_naive_eq_1t_1b_1_0" TopIpDir="." ProjectID="8f12564186f44efbb16d182050067edd" Debug="no" Hls="no" Pdi="no" ShimSoln="no" SwEmu="no">
+      <SupportedFlows>
+        <SupportedFlow>HW_EMU</SupportedFlow>
+        <SupportedFlow>SYSTEM</SupportedFlow>
+      </SupportedFlows>
+    </Kernel>
+  </Kernels>
+</Root>

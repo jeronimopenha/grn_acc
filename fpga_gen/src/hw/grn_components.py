@@ -2,7 +2,7 @@ from veriloggen import *
 from math import log2, ceil
 from grn2dot.grn2dot import Grn2dot
 
-from src.hw.utils import initialize_regs
+from hw.utils import initialize_regs
 
 
 class GrnComponents:

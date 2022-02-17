@@ -1,0 +1,1 @@
+NUM_M_AXIS=1

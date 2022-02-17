@@ -1,6 +1,6 @@
 from veriloggen import *
 
-from src.hw.utils import initialize_regs, bits
+from hw.utils import initialize_regs, bits
 
 
 class AccAXIInterface:

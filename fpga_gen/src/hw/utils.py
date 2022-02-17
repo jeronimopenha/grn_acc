@@ -15,11 +15,11 @@ def state(val, size):
     return format(val, "0%dx" % size)
 
 
-def generate_grn_naive_config(grn_content: Grn2dot, copies_qty=1, default_bus_width=32):
+def generate_grn_naive_config(grn_content: Grn2dot, copies_qty=1, states=1, default_bus_width=32):
     # config states step
     num_nos = grn_content.get_num_nodes()
-    num_states = int(1 << num_nos)
-    num_copies = int(copies_qty)
+    num_states = int(eval(states))
+    num_copies = int(eval(copies_qty))
     num_states = min(2 ** num_nos, num_states)
 
     l = int(ceil(num_nos / default_bus_width) * 4) * 2
@@ -41,16 +41,12 @@ def generate_grn_naive_config(grn_content: Grn2dot, copies_qty=1, default_bus_wi
     conf = []
     for c in range(num_copies):
         i, e, s = states[c]
-        bytes_list = to_bytes_string_list(state(i, l))
-        for b in bytes_list:
-            conf.append(b)
-        bytes_list = to_bytes_string_list(state(e, l))
-        for b in bytes_list:
-            conf.append(b)
+        conf.append((c, state(i, l), state(e, l), s))
+
     return conf
 
 
-def generate_grn_mem_config(grn_content: Grn2dot, default_bus_width=32):
+def generate_eq_mem_config(grn_content: Grn2dot, default_bus_width=32):
     # equation config generation step
     str_mem_conf = ""
     eq_bits = 0
@@ -81,15 +77,47 @@ def generate_grn_mem_config(grn_content: Grn2dot, default_bus_width=32):
         # print(str_mem_conf)
     if len(str_mem_conf) % 32 > 0:
         new_str = ""
-        for i in range(len(str_mem_conf) % 32):
+        for i in range(32 - (len(str_mem_conf) % 32)):
             new_str = new_str + "0"
         str_mem_conf = new_str + str_mem_conf
-    # print(len(str_mem_conf))
+    return str_mem_conf
 
+
+def generate_grn_mem_config(grn_content: Grn2dot, copies_qty=1, states=1, default_bus_width=32):
     # config states step
     num_nos = grn_content.get_num_nodes()
-    num_states = int(1 << num_nos)
-    num_copies = int(1)
+    num_states = int(eval(states))
+    num_copies = int(eval(copies_qty))
+    num_states = min(2 ** num_nos, num_states)
+
+    l = int(ceil(num_nos / default_bus_width) * 4) * 2
+
+    state_per_copy = int(num_states / num_copies)
+    state_rest = int(num_states % num_copies)
+    init = 0
+    states = [(0, 0, 0) for _ in range(num_copies)]
+
+    for c in range(num_copies):
+        if state_rest > 0:
+            states[c] = (init, init + state_per_copy, state_per_copy + 1)
+            init += state_per_copy + 1
+            state_rest -= 1
+        else:
+            states[c] = (init, init + state_per_copy - 1, state_per_copy)
+            init += state_per_copy
+    conf = []
+    for c in range(num_copies):
+        i, e, s = states[c]
+        conf.append((c, state(i, l), state(e, l), s))
+    return conf
+
+
+def generate_grn_mem_config_test_bench(grn_content: Grn2dot, copies_qty=1, states=1, default_bus_width=32):
+    str_mem_conf = generate_eq_mem_config(grn_content)
+    # config states step
+    num_nos = grn_content.get_num_nodes()
+    num_states = states
+    num_copies = copies_qty
     num_states = min(2 ** num_nos, num_states)
 
     l = int(ceil(num_nos / default_bus_width) * 4) * 2

@@ -1,0 +1,89 @@
+{
+ "session": {
+  "name": "v++_link_grn_5pe_naive_eq_1t_1b.link",
+  "uuid": "a7d4a386-ff71-45f2-bf1c-f921ac83dc54",
+  "description": "v++ --xp param:compiler.lockFlowCritSlackThreshold=0 --xp vivado_param:hd.routingContainmentAreaExpansion=true --xp vivado_param:hd.supportClockNetCrossDiffReconfigurablePartitions=1 --xp vivado_param:bitstream.enablePR=4123 --xp vivado_param:physynth.ultraRAMOptOutput=false --xp vivado_prop:run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MAX_URAM_CASCADE_HEIGHT}={1} --xp vivado_param:synth.elaboration.rodinMoreOptions={rt::set_parameter disableOregPackingUram true}  -l -t hw_emu --platform /tools/aws-fpga/Vitis/aws_platform/xilinx_aws-vu9p-f1_shell-v04261818_201920_2/xilinx_aws-vu9p-f1_shell-v04261818_201920_2.xpfm --save-temps -g --config vitis_config.txt --temp_dir ./build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2 -o ./build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/grn_5pe_naive_eq_1t_1b.link.xclbin _x.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/grn_5pe_naive_eq_1t_1b.xo ",
+  "timestamp": "0",
+  "report_file": {
+   "scheme": "FILE",
+   "host": "",
+   "port": 0,
+   "path": "/home/jeronimocosta/Documentos/GIT/grn_CCPE_2022/grn_5pe_naive_eq_1t_1b/xilinx_aws_f1/hw/simulate/build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/reports/link/v++_link_grn_5pe_naive_eq_1t_1b.link_guidance.html",
+   "query": "",
+   "fragment": "",
+   "media_type": "",
+   "encoding": "",
+   "data": ""
+  },
+  "proto_file": {
+   "scheme": "FILE",
+   "host": "",
+   "port": 0,
+   "path": "/home/jeronimocosta/Documentos/GIT/grn_CCPE_2022/grn_5pe_naive_eq_1t_1b/xilinx_aws_f1/hw/simulate/build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/v++_link_grn_5pe_naive_eq_1t_1b.link_guidance.pb",
+   "query": "",
+   "fragment": "",
+   "media_type": "",
+   "encoding": "",
+   "data": ""
+  },
+  "build_target": "",
+  "config_files": [
+   {
+    "fileName": "vitis_config.txt",
+    "contents": "[connectivity]\nsp=grn_5pe_naive_eq_1t_1b_1.in0:DDR[0]\nsp=grn_5pe_naive_eq_1t_1b_1.out0:DDR[0]\n"
+   }
+  ]
+ },
+ "violation_count": 0,
+ "waived_count": 0,
+ "affirmation_count": 1,
+ "affirmations": {
+  "hashmap": {
+   "1": {
+    "id": 1,
+    "rule_key": "SYSLINK-1",
+    "examples": {
+     "uri": []
+    },
+    "build_target": "",
+    "expects": "",
+    "details": {
+     "text": "Created top level block diagram design dr.bd.tcl",
+     "args": {
+      "arg": [
+       {
+        "string_val": "dr.bd.tcl"
+       }
+      ]
+     }
+    },
+    "categories": {},
+    "extended_categories": {},
+    "group": ""
+   }
+  }
+ },
+ "specs_affirmed": {
+  "hashmap": {
+   "SYSLINK-1": {
+    "key": "SYSLINK-1",
+    "full_name": "system_link Top Level BD Creation",
+    "owner": "system_link",
+    "raw_msg": "Created top level block diagram design %STR",
+    "msg_abbrev": "",
+    "msg_id": "0",
+    "categories": {},
+    "resolution_msg": "",
+    "severity": "SEV_FATAL",
+    "disposition": "ENABLED",
+    "expects": "",
+    "affirm_msg": "",
+    "dynamic_categories": {},
+    "extensible_categories": [],
+    "impact": "IMPACT_UNKNOWN",
+    "group": ""
+   }
+  }
+ }
+}
+

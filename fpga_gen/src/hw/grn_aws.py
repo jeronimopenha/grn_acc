@@ -1,9 +1,13 @@
 from veriloggen import *
 from grn2dot.grn2dot import Grn2dot
-from grn_components import GrnComponents
-from src.hw.utils import initialize_regs
+
+from hw.grn_components import GrnComponents
+from hw.utils import initialize_regs
 from math import ceil, log2, pow, floor
 
+p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if not p in sys.path:
+    sys.path.insert(0, p)
 
 class GrnAws:
 

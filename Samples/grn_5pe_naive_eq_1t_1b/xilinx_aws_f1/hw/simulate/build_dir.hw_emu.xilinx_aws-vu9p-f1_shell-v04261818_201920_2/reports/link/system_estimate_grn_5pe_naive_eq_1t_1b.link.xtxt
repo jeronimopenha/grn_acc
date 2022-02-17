@@ -1,0 +1,36 @@
+===============================================================================
+Version:    v++ v2020.2 (64-bit)
+Build:      SW Build (by xbuild) on 2020-11-18-05:13:29
+Copyright:  Copyright 1986-2020 Xilinx, Inc. All Rights Reserved.
+Created:    Wed Feb 16 16:14:18 2022
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             grn_5pe_naive_eq_1t_1b.link
+Target Device:           xilinx:aws-vu9p-f1:shell-v04261818:201920.2
+Target Clock:            250.000000MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name             Type  Target              OpenCL Library               Compute Units
+----------------------  ----  ------------------  ---------------------------  -------------
+grn_5pe_naive_eq_1t_1b  ip    fpga0:OCL_REGION_0  grn_5pe_naive_eq_1t_1b.link  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     grn_5pe_naive_eq_1t_1b.link
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit  Kernel Name  Module Name  Target Frequency  Estimated Frequency
+------------  -----------  -----------  ----------------  -------------------
+
+Latency Information
+Compute Unit  Kernel Name  Module Name  Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------  -----------  -----------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+
+Area Information
+Compute Unit  Kernel Name  Module Name  FF  LUT  DSP  BRAM  URAM
+------------  -----------  -----------  --  ---  ---  ----  ----
+-------------------------------------------------------------------------------

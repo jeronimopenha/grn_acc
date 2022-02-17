@@ -1,0 +1,254 @@
+{
+ "system_diagram_metadata": {
+  "schema_version": {
+   "major": "2",
+   "minor": "0",
+   "patch": "0"
+  },
+  "xsa": {
+   "vendor": "xilinx",
+   "board_id": "aws-vu9p-f1",
+   "name": "shell-v04261818",
+   "version_major": "201920",
+   "version_minor": "2",
+   "description": "\n    {No description given}\n  ",
+   "generated_by": {
+    "name": "Vivado",
+    "version": "2019.2",
+    "cl": "2708876",
+    "time_stamp": "Tue Apr 28 20:02:31 2020"
+   },
+   "board": {
+    "name": "",
+    "vendor": "amazon",
+    "part": "",
+    "board_part": ""
+   },
+   "available_resources": {
+    "LUT": "1182240",
+    "REG": "",
+    "BRAM": "2160",
+    "DSP": "6840",
+    "URAM": ""
+   },
+   "device_topology": [
+    {
+     "id": "0",
+     "type": "Ddr4",
+     "used": "yes",
+     "sizeKB": "0x1000000",
+     "base_address": "0x4000000000",
+     "tag": "bank0",
+     "slr": "SLR1",
+     "spTag": "DDR[0]"
+    },
+    {
+     "id": "1",
+     "type": "Ddr4",
+     "used": "no",
+     "sizeKB": "0x1000000",
+     "base_address": "0x400000000",
+     "tag": "bank1",
+     "slr": "SLR2",
+     "spTag": "DDR[1]"
+    },
+    {
+     "id": "2",
+     "type": "Ddr4",
+     "used": "no",
+     "sizeKB": "0x1000000",
+     "base_address": "0x4800000000",
+     "tag": "bank2",
+     "slr": "SLR1",
+     "spTag": "DDR[2]"
+    },
+    {
+     "id": "3",
+     "type": "Ddr4",
+     "used": "no",
+     "sizeKB": "0x1000000",
+     "base_address": "0x4c00000000",
+     "tag": "bank3",
+     "slr": "SLR0",
+     "spTag": "DDR[3]"
+    },
+    {
+     "id": "4",
+     "type": "Dram",
+     "used": "no",
+     "sizeKB": "0x80",
+     "base_address": "0x5000000000",
+     "tag": "PLRAM[0]",
+     "slr": "",
+     "spTag": "PLRAM[0]"
+    },
+    {
+     "id": "5",
+     "type": "Dram",
+     "used": "no",
+     "sizeKB": "0x80",
+     "base_address": "0x5000020000",
+     "tag": "PLRAM[1]",
+     "slr": "",
+     "spTag": "PLRAM[1]"
+    },
+    {
+     "id": "6",
+     "type": "Dram",
+     "used": "no",
+     "sizeKB": "0x80",
+     "base_address": "0x5000040000",
+     "tag": "PLRAM[2]",
+     "slr": "",
+     "spTag": "PLRAM[2]"
+    }
+   ],
+   "design_intent": [
+    "dataCenter",
+    "externalHost",
+    "serverManaged"
+   ]
+  },
+  "xclbin": {
+   "generated_by": {
+    "name": "v++",
+    "version": "2020.2",
+    "cl": "0",
+    "time_stamp": "2020-11-18-05:13:29",
+    "options": "/tools/Xilinx/Vitis/2020.2/bin/unwrapped/lnx64.o/v++ -l -t hw_emu --platform /tools/aws-fpga/Vitis/aws_platform/xilinx_aws-vu9p-f1_shell-v04261818_201920_2/xilinx_aws-vu9p-f1_shell-v04261818_201920_2.xpfm --save-temps -g --config vitis_config.txt --temp_dir ./build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2 -o ./build_dir.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/grn_5pe_naive_eq_1t_1b.link.xclbin _x.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/grn_5pe_naive_eq_1t_1b.xo ",
+    "xclbin_name": "grn_5pe_naive_eq_1t_1b.link",
+    "uuid": "7ff7e2e7-4929-4f57-ac5d-8135a17225f7",
+    "link_uuid": "7ff7e2e7-4929-4f57-ac5d-8135a17225f7",
+    "package_uuid": ""
+   },
+   "user_regions": [
+    {
+     "name": "OCL_REGION_0",
+     "type": "clc_region",
+     "instance_path": "WRAPPER_INST/CL",
+     "kernels": [
+      {
+       "name": "grn_5pe_naive_eq_1t_1b",
+       "ports": [
+        {
+         "name": "m00_axi",
+         "mode": "master",
+         "range": "0xFFFFFFFF",
+         "data_width": "32",
+         "port_type": "addressable",
+         "base": "0x0",
+         "direction": "DirUnknown"
+        },
+        {
+         "name": "s_axi_control",
+         "mode": "slave",
+         "range": "0x1000",
+         "data_width": "32",
+         "port_type": "addressable",
+         "base": "0x0",
+         "direction": "DirUnknown"
+        }
+       ],
+       "arguments": [
+        {
+         "id": "0",
+         "name": "in_s0",
+         "address_qualifier": "0",
+         "port": "s_axi_control",
+         "size": "0x4",
+         "offset": "0x10",
+         "host_offset": "0x0",
+         "host_size": "0x4",
+         "type": "ap_uint\u003c32\u003e",
+         "direction": "DirUnknown"
+        },
+        {
+         "id": "1",
+         "name": "out_s0",
+         "address_qualifier": "0",
+         "port": "s_axi_control",
+         "size": "0x4",
+         "offset": "0x18",
+         "host_offset": "0x0",
+         "host_size": "0x4",
+         "type": "ap_uint\u003c32\u003e",
+         "direction": "DirUnknown"
+        },
+        {
+         "id": "2",
+         "name": "in0",
+         "address_qualifier": "1",
+         "port": "m00_axi",
+         "size": "0x8",
+         "offset": "0x20",
+         "host_offset": "0x0",
+         "host_size": "0x8",
+         "type": "void*",
+         "direction": "DirUnknown"
+        },
+        {
+         "id": "3",
+         "name": "out0",
+         "address_qualifier": "1",
+         "port": "m00_axi",
+         "size": "0x8",
+         "offset": "0x2c",
+         "host_offset": "0x0",
+         "host_size": "0x8",
+         "type": "void*",
+         "direction": "DirUnknown"
+        }
+       ]
+      }
+     ],
+     "compute_units": [
+      {
+       "id": "0",
+       "kernel_name": "grn_5pe_naive_eq_1t_1b",
+       "cu_name": "grn_5pe_naive_eq_1t_1b_1",
+       "base_address": "0x1c020000",
+       "actual_resources": []
+      }
+     ],
+     "connectivity": [
+      {
+       "id": "0",
+       "node1": {
+        "type": "compute_unit",
+        "id": "0",
+        "kernel_argument_id": "2",
+        "arg_name": "in0",
+        "mode": "Master"
+       },
+       "node2": {
+        "type": "memory",
+        "id": "0",
+        "kernel_argument_id": "",
+        "arg_name": "",
+        "mode": ""
+       }
+      },
+      {
+       "id": "1",
+       "node1": {
+        "type": "compute_unit",
+        "id": "0",
+        "kernel_argument_id": "3",
+        "arg_name": "out0",
+        "mode": "Master"
+       },
+       "node2": {
+        "type": "memory",
+        "id": "0",
+        "kernel_argument_id": "",
+        "arg_name": "",
+        "mode": ""
+       }
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
+

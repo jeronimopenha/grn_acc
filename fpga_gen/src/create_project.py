@@ -1,13 +1,11 @@
 import argparse
-import os
-import sys
 import traceback
 from veriloggen import *
 from math import ceil
 
-from src.hw.create_acc_axi_interface import AccAXIInterface
-from src.hw.grn_accelerator import GrnAccelerator
-from src.hw.utils import commands_getoutput
+from hw.create_acc_axi_interface import AccAXIInterface
+from hw.grn_accelerator import GrnAccelerator
+from hw.utils import commands_getoutput
 
 p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not p in sys.path:
@@ -25,7 +23,7 @@ def create_args():
     parser.add_argument('-g', '--grn', help='GRN description file', type=str)
     parser.add_argument('-b', '--blocks', help='Number of blocks', type=int)
     parser.add_argument('-t', '--threads', help='Number of threads per block', type=int)
-    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with mem', type=int)
+    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with memory', type=int)
     parser.add_argument('-n', '--name', help='Project name', type=str, default='a.prj')
     parser.add_argument('-o', '--output', help='Project location', type=str, default='.')
 

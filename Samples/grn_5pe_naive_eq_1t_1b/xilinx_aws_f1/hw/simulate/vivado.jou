@@ -1,0 +1,12 @@
+#-----------------------------------------------------------
+# Vivado v2020.2 (64-bit)
+# SW Build 3064766 on Wed Nov 18 09:12:47 MST 2020
+# IP Build 3064653 on Wed Nov 18 14:17:31 MST 2020
+# Start of session at: Wed Feb 16 16:08:19 2022
+# Process ID: 725445
+# Current directory: /home/jeronimocosta/Documentos/GIT/grn_CCPE_2022/grn_5pe_naive_eq_1t_1b/xilinx_aws_f1/hw/simulate
+# Command line: vivado -mode batch -source ../scripts/gen_xo.tcl -tclargs ./_x.hw_emu.xilinx_aws-vu9p-f1_shell-v04261818_201920_2/grn_5pe_naive_eq_1t_1b.xo grn_5pe_naive_eq_1t_1b hw_emu /tools/aws-fpga/Vitis/aws_platform/xilinx_aws-vu9p-f1_shell-v04261818_201920_2/xilinx_aws-vu9p-f1_shell-v04261818_201920_2.xpfm xilinx_aws-vu9p-f1_shell-v04261818_201920_2 1
+# Log file: /home/jeronimocosta/Documentos/GIT/grn_CCPE_2022/grn_5pe_naive_eq_1t_1b/xilinx_aws_f1/hw/simulate/vivado.log
+# Journal file: /home/jeronimocosta/Documentos/GIT/grn_CCPE_2022/grn_5pe_naive_eq_1t_1b/xilinx_aws_f1/hw/simulate/vivado.jou
+#-----------------------------------------------------------
+source ../scripts/gen_xo.tcl

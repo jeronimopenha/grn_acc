@@ -12,10 +12,22 @@
 
 #define print(x) std::cout << (x) << std::endl
 
-typedef struct grn_conf_t{
-    unsigned char init_state[STATE_SIZE_WORDS * 4];
-    unsigned char end_state[STATE_SIZE_WORDS * 4];
-}grn_conf_t;
+#if PE_TYPE == 0
+    typedef struct grn_conf_t{
+        unsigned char init_state[STATE_SIZE_WORDS * 4];
+        unsigned char end_state[STATE_SIZE_WORDS * 4];
+    }grn_conf_t;
+
+#elif PE_TYPE == 1
+    typedef struct grn_conf_t{
+        unsigned char mem_conf[MEM_CONF_BYTES]
+        unsigned char init_state[STATE_SIZE_WORDS * 4];
+        unsigned char end_state[STATE_SIZE_WORDS * 4];
+    }grn_conf_t;
+#else
+    PE não definido
+#endif
+
 
 typedef struct grn_data_out_t{
     unsigned int sum;

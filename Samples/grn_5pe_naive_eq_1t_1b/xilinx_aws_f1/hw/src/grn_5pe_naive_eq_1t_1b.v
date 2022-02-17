@@ -1180,8 +1180,8 @@ module grn_aws_1
 
   //PE modules instantiation - Begin
 
-  grn_mem_pe
-  grn_mem_pe_0
+  grn_naive_pe
+  grn_naive_pe_0
   (
     .clk(clk),
     .rst(rst),
@@ -1221,7 +1221,7 @@ endmodule
 
 
 
-module grn_mem_pe
+module grn_naive_pe
 (
   input clk,
   input rst,
@@ -1247,18 +1247,15 @@ module grn_mem_pe
   wire [32-1:0] pe_init_conf;
   wire [32-1:0] pe_end_conf;
   reg [64-1:0] pe_data_conf;
-  reg [1-1:0] config_counter;
-  reg [64-1:0] pe_eq_conf;
-  reg [1-1:0] config_eq_counter;
   assign pe_init_conf = pe_data_conf[31:0];
   assign pe_end_conf = pe_data_conf[63:32];
+  reg [1-1:0] config_counter;
   //configuration wires and regs - end
 
   // regs and wires to control the grn core
   reg start_grn;
   wire [5-1:0] grn_initial_state;
   wire [5-1:0] grn_final_state;
-  wire [48-1:0] grn_equations_config;
   reg grn_output_read_enable;
   wire grn_output_valid;
   wire [32-1:0] grn_output_data;
@@ -1279,46 +1276,26 @@ module grn_mem_pe
   wire fifo_out_full;
 
   //configuration sector - begin
-  reg [2-1:0] fsm_config;
-  localparam fsm_config_mem_config = 0;
-  localparam fsm_config_other = 1;
-  localparam fsm_config_done = 2;
 
   always @(posedge clk) begin
     config_output_valid <= 0;
-    config_output <= config_input;
     config_output_done <= config_input_done;
     if(rst) begin
       is_configured <= 0;
       config_counter <= 0;
-      config_eq_counter <= 0;
-      fsm_config <= fsm_config_mem_config;
     end else begin
-      case(fsm_config)
-        fsm_config_mem_config: begin
-          if(config_input_valid) begin
-            config_eq_counter <= config_eq_counter + 1;
-            if(config_eq_counter == 1) begin
-              fsm_config <= fsm_config_other;
-            end 
-            pe_eq_conf <= { config_input, pe_eq_conf[63:32] };
-            config_output_valid <= config_input_valid;
-          end 
-        end
-        fsm_config_other: begin
-          if(config_input_valid) begin
-            config_counter <= config_counter + 1;
-            if(config_counter == 1) begin
-              is_configured <= 1;
-              fsm_config <= fsm_config_done;
-            end 
-            pe_data_conf <= { config_input, pe_data_conf[63:32] };
-          end 
-        end
-        fsm_config_done: begin
+      if(config_input_valid) begin
+        config_counter <= config_counter + 1;
+        if(config_counter == 1) begin
+          is_configured <= 1;
+        end 
+        if(~is_configured) begin
+          pe_data_conf <= { config_input, pe_data_conf[63:32] };
+        end else begin
           config_output_valid <= config_input_valid;
+          config_output <= config_input;
         end
-      endcase
+      end 
     end
   end
 
@@ -1348,7 +1325,7 @@ module grn_mem_pe
             end 
           end
           fsm_pe_jo_rd_grn: begin
-            if(&{ grn_output_available, ~fifo_out_full }) begin
+            if(grn_output_available && ~fifo_out_full) begin
               grn_output_read_enable <= 1;
               fsm_pe_jo <= fsm_pe_jo_wr_grn;
             end 
@@ -1372,7 +1349,7 @@ module grn_mem_pe
             end 
           end
           fsm_pe_jo_rd_pe: begin
-            if(&{ pe_bypass_available, ~fifo_out_full }) begin
+            if(pe_bypass_available && ~fifo_out_full) begin
               pe_bypass_read_enable <= 1;
               fsm_pe_jo <= fsm_pe_jo_wr_pe;
             end 
@@ -1396,17 +1373,15 @@ module grn_mem_pe
   // Grn core instantiation
   assign grn_initial_state = pe_init_conf[4:0];
   assign grn_final_state = pe_end_conf[4:0];
-  assign grn_equations_config = pe_eq_conf[47:0];
 
-  grn_mem_core
-  grn_mem_core
+  grn_naive_core
+  grn_naive_core
   (
     .clk(clk),
     .rst(rst),
     .start(start_grn),
     .initial_state(grn_initial_state),
     .final_state(grn_final_state),
-    .equations_config(grn_equations_config),
     .output_read_enable(grn_output_read_enable),
     .output_valid(grn_output_valid),
     .output_data(grn_output_data),
@@ -1420,7 +1395,7 @@ module grn_mem_pe
     .FIFO_WIDTH(32),
     .FIFO_DEPTH_BITS(5)
   )
-  pe_mem_fifo_out
+  pe_naive_fifo_out
   (
     .clk(clk),
     .rst(rst),
@@ -1442,15 +1417,12 @@ module grn_mem_pe
     is_configured = 0;
     pe_data_conf = 0;
     config_counter = 0;
-    pe_eq_conf = 0;
-    config_eq_counter = 0;
     start_grn = 0;
     grn_output_read_enable = 0;
     fsm_pe_jo = 0;
     rd_wr_counter = 0;
     fifo_out_write_enable = 0;
     fifo_out_input_data = 0;
-    fsm_config = 0;
   end
 
 
@@ -1458,23 +1430,22 @@ endmodule
 
 
 
-module grn_mem_core
+module grn_naive_core
 (
   input clk,
   input rst,
   input start,
   input [5-1:0] initial_state,
   input [5-1:0] final_state,
-  input [48-1:0] equations_config,
   input output_read_enable,
   output output_valid,
   output [32-1:0] output_data,
   output output_available
 );
 
-  // The grn mem core configuration consists in two buses with the initial state and the final state to be
-  // searched and the content of a 1 bit memory for each equation.
-  // The mem kernel output data is the FIFO data output that contains all the data found.
+  // The grn core naive configuration consists in two buses with the initial state and the final 
+  // state to be searched.
+  //The naive kernel output data is the FIFO data output that contains all the data found.
 
   //Fifo wires and regs
   reg fifo_write_enable;
@@ -1482,7 +1453,7 @@ module grn_mem_core
   wire fifo_full;
   wire fifo_empty;
 
-  // Wires and regs to be used in control and execution of the grn mem
+  // Wires and regs to be used in control and execution of the grn naive
   reg [5-1:0] actual_state_s1;
   wire [5-1:0] next_state_s1;
   reg [5-1:0] actual_state_s2;
@@ -1495,55 +1466,43 @@ module grn_mem_core
   reg [128-1:0] data_to_write;
   reg [2-1:0] write_counter;
 
-  // Here are the GRN eq_wires to be used in the core execution are created
-  wire [16-1:0] eq_CtrA;
-  wire [4-1:0] eq_GcrA;
-  wire [4-1:0] eq_SciP;
-  wire [16-1:0] eq_DnaA;
-  wire [8-1:0] eq_CcrM;
-  assign eq_CtrA = equations_config[15:0];
-  assign eq_GcrA = equations_config[19:16];
-  assign eq_SciP = equations_config[23:20];
-  assign eq_DnaA = equations_config[39:24];
-  assign eq_CcrM = equations_config[47:40];
-
-  // State machine to control the grn algorithm execution
-  reg [3-1:0] fsm_mem;
-  localparam fsm_mem_set = 0;
-  localparam fsm_mem_init = 1;
-  localparam fsm_mem_transient_finder = 2;
-  localparam fsm_mem_period_finder = 3;
-  localparam fsm_mem_prepare_to_write = 4;
-  localparam fsm_mem_write = 5;
-  localparam fsm_mem_verify = 6;
-  localparam fsm_mem_done = 7;
+  //State machine to control the grn algorithm execution
+  reg [3-1:0] fsm_naive;
+  localparam fsm_naive_set = 0;
+  localparam fsm_naive_init = 1;
+  localparam fsm_naive_transient_finder = 2;
+  localparam fsm_naive_period_finder = 3;
+  localparam fsm_naive_prepare_to_write = 4;
+  localparam fsm_naive_write = 5;
+  localparam fsm_naive_verify = 6;
+  localparam fsm_naive_done = 7;
 
   always @(posedge clk) begin
     if(rst) begin
       fifo_write_enable <= 0;
-      fsm_mem <= fsm_mem_set;
+      fsm_naive <= fsm_naive_set;
     end else begin
       if(start) begin
         fifo_write_enable <= 0;
-        case(fsm_mem)
-          fsm_mem_set: begin
+        case(fsm_naive)
+          fsm_naive_set: begin
             exec_state <= initial_state;
-            fsm_mem <= fsm_mem_init;
+            fsm_naive <= fsm_naive_init;
           end
-          fsm_mem_init: begin
+          fsm_naive_init: begin
             actual_state_s1 <= exec_state;
             actual_state_s2 <= exec_state;
             transient_counter <= 0;
             period_counter <= 0;
             flag_first_it <= 1;
             flag_pulse <= 0;
-            fsm_mem <= fsm_mem_transient_finder;
+            fsm_naive <= fsm_naive_transient_finder;
           end
-          fsm_mem_transient_finder: begin
+          fsm_naive_transient_finder: begin
             flag_first_it <= 0;
             if((actual_state_s1 == actual_state_s2) && ~flag_first_it && ~flag_pulse) begin
               flag_first_it <= 1;
-              fsm_mem <= fsm_mem_period_finder;
+              fsm_naive <= fsm_naive_period_finder;
             end else begin
               actual_state_s2 <= next_state_s2;
               if(flag_pulse) begin
@@ -1555,24 +1514,24 @@ module grn_mem_core
               end
             end
           end
-          fsm_mem_period_finder: begin
+          fsm_naive_period_finder: begin
             flag_first_it <= 0;
             if((actual_state_s1 == actual_state_s2) && ~flag_first_it) begin
               period_counter <= period_counter - 1;
-              fsm_mem <= fsm_mem_prepare_to_write;
+              fsm_naive <= fsm_naive_prepare_to_write;
             end else begin
               actual_state_s2 <= next_state_s2;
               period_counter <= period_counter + 1;
             end
           end
-          fsm_mem_prepare_to_write: begin
+          fsm_naive_prepare_to_write: begin
             data_to_write <= { 27'b0, exec_state, 27'b0, actual_state_s1, transient_counter, period_counter };
-            fsm_mem <= fsm_mem_write;
+            fsm_naive <= fsm_naive_write;
             write_counter <= 0;
           end
-          fsm_mem_write: begin
+          fsm_naive_write: begin
             if(write_counter == 3) begin
-              fsm_mem <= fsm_mem_verify;
+              fsm_naive <= fsm_naive_verify;
             end 
             if(~fifo_full) begin
               write_counter <= write_counter + 1;
@@ -1581,33 +1540,20 @@ module grn_mem_core
               fifo_input_data <= data_to_write[31:0];
             end 
           end
-          fsm_mem_verify: begin
+          fsm_naive_verify: begin
             if(exec_state == final_state) begin
-              fsm_mem <= fsm_mem_done;
+              fsm_naive <= fsm_naive_done;
             end else begin
               exec_state <= exec_state + 1;
-              fsm_mem <= fsm_mem_init;
+              fsm_naive <= fsm_naive_init;
             end
           end
-          fsm_mem_done: begin
+          fsm_naive_done: begin
           end
         endcase
       end 
     end
   end
-
-
-  // Assigns to define each bit is used on each equation memory
-  assign next_state_s1[0] = eq_CtrA[{actual_state_s1[4],actual_state_s1[2],actual_state_s1[1],actual_state_s1[0]}];
-  assign next_state_s2[0] = eq_CtrA[{actual_state_s2[4],actual_state_s2[2],actual_state_s2[1],actual_state_s2[0]}];
-  assign next_state_s1[1] = eq_GcrA[{actual_state_s1[3],actual_state_s1[0]}];
-  assign next_state_s2[1] = eq_GcrA[{actual_state_s2[3],actual_state_s2[0]}];
-  assign next_state_s1[2] = eq_SciP[{actual_state_s1[3],actual_state_s1[0]}];
-  assign next_state_s2[2] = eq_SciP[{actual_state_s2[3],actual_state_s2[0]}];
-  assign next_state_s1[3] = eq_DnaA[{actual_state_s1[4],actual_state_s1[3],actual_state_s1[1],actual_state_s1[0]}];
-  assign next_state_s2[3] = eq_DnaA[{actual_state_s2[4],actual_state_s2[3],actual_state_s2[1],actual_state_s2[0]}];
-  assign next_state_s1[4] = eq_CcrM[{actual_state_s1[4],actual_state_s1[2],actual_state_s1[0]}];
-  assign next_state_s2[4] = eq_CcrM[{actual_state_s2[4],actual_state_s2[2],actual_state_s2[0]}];
 
   //Output data fifo instantiation
   assign output_available = ~fifo_empty;
@@ -1617,7 +1563,7 @@ module grn_mem_core
     .FIFO_WIDTH(32),
     .FIFO_DEPTH_BITS(5)
   )
-  grn_mem_core_output_fifo
+  grn_naive_core_output_fifo
   (
     .clk(clk),
     .rst(rst),
@@ -1629,6 +1575,22 @@ module grn_mem_core
     .empty(fifo_empty),
     .almostfull(fifo_full)
   );
+
+
+  // Here are the GRN equations to be used in the core execution are created
+  // For S1 pointer
+  assign next_state_s1[0] =    (actual_state_s1[0]||actual_state_s1[1])   &&   (   !actual_state_s1[4])   &&   (   !actual_state_s1[2])   ;
+  assign next_state_s1[1] = actual_state_s1[3]&&   !actual_state_s1[0];
+  assign next_state_s1[2] = actual_state_s1[0]&&   !actual_state_s1[3];
+  assign next_state_s1[3] = actual_state_s1[0]&&actual_state_s1[4]&&   (   !actual_state_s1[1])   &&   (   !actual_state_s1[3])   ;
+  assign next_state_s1[4] = actual_state_s1[0]&&   (   !actual_state_s1[4])   &&   (   !actual_state_s1[2])   ;
+
+  // For S2 pointer
+  assign next_state_s2[0] =    (actual_state_s2[0]||actual_state_s2[1])   &&   (   !actual_state_s2[4])   &&   (   !actual_state_s2[2])   ;
+  assign next_state_s2[1] = actual_state_s2[3]&&   !actual_state_s2[0];
+  assign next_state_s2[2] = actual_state_s2[0]&&   !actual_state_s2[3];
+  assign next_state_s2[3] = actual_state_s2[0]&&actual_state_s2[4]&&   (   !actual_state_s2[1])   &&   (   !actual_state_s2[3])   ;
+  assign next_state_s2[4] = actual_state_s2[0]&&   (   !actual_state_s2[4])   &&   (   !actual_state_s2[2])   ;
 
 
   initial begin
@@ -1643,7 +1605,7 @@ module grn_mem_core
     period_counter = 0;
     data_to_write = 0;
     write_counter = 0;
-    fsm_mem = 0;
+    fsm_naive = 0;
   end
 
 

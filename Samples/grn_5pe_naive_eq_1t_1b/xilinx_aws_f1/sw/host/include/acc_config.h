@@ -5,3 +5,5 @@
 #define NUM_NOS (5)
 #define STATE_SIZE_WORDS (1)
 #define ACC_DATA_BYTES (4)
+#define PE_TYPE (0)
+#define MEM_CONF_BYTES (8)

@@ -18,26 +18,20 @@ def create_args():
 def create_output(grn_file, pe_type, num_states, num_copies, output):
     grn_content = Grn2dot(grn_file)
     eq_conf_string = ""
-    if pe_type == '0':
-        conf = generate_grn_naive_config(grn_content, copies_qty=num_copies, states=num_states)
-    elif pe_type == '1':
-        eq_conf_string = generate_eq_mem_config(grn_content)
-        conf = generate_grn_mem_config(grn_content, copies_qty=num_copies, states=num_states)
-    else:
-        conf = generate_grn_naive_config(grn_content, copies_qty=num_copies, states=num_states)
+    eq_conf_string = generate_eq_mem_config(grn_content)
+    conf = generate_grn_mem_config(grn_content, copies_qty=num_copies, states=num_states)
 
-    with open(output, 'w') as f:
+    with open(output + '.csv', 'w') as f:
         for c in range(len(conf)):
             f.write("%d,%s,%s,%d\n" % (conf[c][0], conf[c][1], conf[c][2], conf[c][3]))
         f.close()
-    if pe_type == '1':
-        with open(output + "_mem", 'w') as f:
-            bytes_list = to_bytes_string_list(eq_conf_string)
-            wr_str = ""
-            for b in bytes_list:
-                wr_str = state(int(b, 2), 2) + wr_str
-            f.write("%s\n" % wr_str)
-            f.close()
+    with open(output + "_mem.csv", 'w') as f:
+        bytes_list = to_bytes_string_list(eq_conf_string)
+        wr_str = ""
+        for b in bytes_list:
+            wr_str = state(int(b, 2), 2) + wr_str
+        f.write("%s\n" % wr_str)
+        f.close()
 
 
 def main():

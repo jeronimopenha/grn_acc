@@ -10,7 +10,7 @@ LDFLAGS += -lrt -lstdc++
 
 CXXFLAGS += -fmessage-length=0 -fPIC
 
-LIB_NAME=grnfpga
+LIB_NAME=accfpga
 
 SRC_FILES = $(shell find ./src -iname *.cpp)
 

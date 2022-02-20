@@ -1,33 +1,24 @@
-import math
 from veriloggen import *
-from grn2dot.grn2dot import Grn2dot
-from math import ceil, pow, log2
-
 from hw.grn_aws import GrnAws
 from hw.utils import initialize_regs
 
 
 class GrnAccelerator:
-    def __init__(self, grn_arch_file, pe_type=0, blocks=1, threads=1, default_bus_width=32):
+    def __init__(self, grn_content, pe_type, blocks, threads, total_eq_bits, bus_width):
         # constants
         self.acc_num_in = blocks
         self.acc_num_out = blocks
         self.pe_type = pe_type
 
-        # needed variables
-        self.grn_arch_file = grn_arch_file
-        self.grn_content = Grn2dot(grn_arch_file)
+        self.grn_content = grn_content
         self.blocks = blocks
         self.threads = threads
-        self.default_bus_width = default_bus_width
+        self.bus_width = bus_width
+        self.total_eq_bits = total_eq_bits
 
-        self.functions = self.grn_content.get_equations_dict()
-        self.nodes_qty = self.grn_content.get_num_nodes()
-        self.nodes = self.grn_content.get_nodes_vector()
-
-        self.acc_data_in_width = default_bus_width
-        self.acc_data_out_width = default_bus_width
-        self.axi_bus_data_width = int(pow(2, ceil(log2(self.acc_data_in_width))))
+        self.acc_data_in_width = bus_width
+        self.acc_data_out_width = bus_width
+        self.axi_bus_data_width = self.acc_data_in_width
 
     def get_num_in(self):
         return self.acc_num_in
@@ -70,7 +61,9 @@ class GrnAccelerator:
                 start_reg(Or(start_reg, start))
             )
         )
-        grn_aws = grn_aws.get(self.grn_content, self.pe_type, self.threads, self.default_bus_width)
+        if self.blocks < 1:
+            raise ValueError("The blocks value can't be lower than 1")
+        grn_aws = grn_aws.get(self.grn_content, self.pe_type, self.threads, self.total_eq_bits, self.bus_width)
         for i in range(self.blocks):
             par = []
             con = [
@@ -84,7 +77,8 @@ class GrnAccelerator:
                 ('grn_aws_read_data', acc_user_read_data[i * self.acc_data_in_width:(i + 1) * self.acc_data_in_width]),
                 ('grn_aws_available_write', acc_user_available_write[i]),
                 ('grn_aws_request_write', acc_user_request_write[i]),
-                ('grn_aws_write_data', acc_user_write_data[i * self.acc_data_out_width:(i + 1) * self.acc_data_out_width]),
+                ('grn_aws_write_data',
+                 acc_user_write_data[i * self.acc_data_out_width:(i + 1) * self.acc_data_out_width]),
                 ('grn_aws_done', grn_aws_done[i])]
             m.Instance(grn_aws, grn_aws.name + "_" + str(i), par, con)
 

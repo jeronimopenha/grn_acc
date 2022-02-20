@@ -1,3 +1,4 @@
+'''
 import multiprocessing.connection
 
 from veriloggen import *
@@ -6,7 +7,7 @@ from grn2dot.grn2dot import Grn2dot
 from math import pow, ceil, log2, floor
 
 from hw.grn_aws import GrnAws
-from hw.utils import initialize_regs, generate_grn_mem_config_test_bench, generate_grn_naive_config
+from hw.utils import initialize_regs, generate_grn_mem_config_test_bench, generate_grn_config
 
 p = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if not p in sys.path:
@@ -488,11 +489,11 @@ class TestBenches:
         # Config Rom configuration regs and wires - Begin --------------------------------------------------------------
         m.EmbeddedCode('\n//Config Rom configuration regs and wires - Begin')
         if self.pe_type == 0:
-            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty, self.states)
+            rom_data = generate_grn_config(self.grn_content, self.copies_qty, self.states)
         elif self.pe_type == 1:
             rom_data = generate_grn_mem_config_test_bench(self.grn_content, self.copies_qty, self.states)
         else:
-            rom_data = generate_grn_naive_config(self.grn_content, self.copies_qty, self.states)
+            rom_data = generate_grn_config(self.grn_content, self.copies_qty, self.states)
 
         qty_conf = len(rom_data)
 
@@ -660,3 +661,4 @@ class TestBenches:
 grn_file = '../../../../grn_benchmarks/Benchmark_70.txt'
 test_benches = TestBenches(grn_file, copies_qty=80, states=80, pe_type=1)
 test_benches.create_grn_acc_testbench()
+'''

@@ -1,25 +1,31 @@
 import argparse
+import os
 import traceback
 
-from hw.utils import *
+from grn2dot.grn2dot import Grn2dot
+
+from hw.utils import generate_eq_mem_config, generate_grn_config, to_bytes_string_list, state
 
 
 def create_args():
     parser = argparse.ArgumentParser('create_grn_input -h')
     parser.add_argument('-g', '--grn', help='GRN description file', type=str)
-    parser.add_argument('-s', '--number', help='Number of states', type=str)
-    parser.add_argument('-c', '--copies', help='Number of copies', type=str)
-    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with memory', type=str)
+    parser.add_argument('-s', '--states', help='Number of states', type=str)
+    parser.add_argument('-b', '--blocks', help='Number of copies', type=int, default=1)
+    parser.add_argument('-t', '--threads', help='Number of threads per block', type=int, default=1)
+    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with memory', type=int,
+                        default=0)
+    parser.add_argument('-w', '--width', help='Default communication bus width', type=int, default=64)
     parser.add_argument('-o', '--output', help='Output file', type=str, default='.')
 
     return parser.parse_args()
 
 
-def create_output(grn_file, pe_type, num_states, num_copies, output):
+def create_output(grn_file, pe_type, copies_qty, states, bus_width, output):
     grn_content = Grn2dot(grn_file)
-    eq_conf_string = ""
-    eq_conf_string = generate_eq_mem_config(grn_content)
-    conf = generate_grn_mem_config(grn_content, copies_qty=num_copies, states=num_states)
+    if pe_type == 0:
+        eq_conf_string = generate_eq_mem_config(grn_content)
+    conf = generate_grn_config(grn_content, pe_type, copies_qty, states, bus_width)
 
     with open(output + '.csv', 'w') as f:
         for c in range(len(conf)):
@@ -41,8 +47,8 @@ def main():
     if args.output == '.':
         args.output = running_path
 
-    if args.grn and args.number and args.pe_type and args.copies and args.output:
-        create_output(args.grn, args.pe_type, args.number, args.copies, args.output)
+    if args.grn and args.states:
+        create_output(args.grn, args.pe_type, args.copies, args.states, args.width, args.output)
     else:
         msg = 'Missing parameters. Run create_grn_input -h to see all parameters needed'
         raise Exception(msg)

@@ -13,19 +13,17 @@ def create_args():
     parser.add_argument('-s', '--states', help='Number of states', type=str)
     parser.add_argument('-b', '--blocks', help='Number of copies', type=int, default=1)
     parser.add_argument('-t', '--threads', help='Number of threads per block', type=int, default=1)
-    parser.add_argument('-p', '--pe_type', help='Type of PE: 0 - naive with equations; 1 - naive with memory', type=int,
-                        default=0)
     parser.add_argument('-w', '--width', help='Default communication bus width', type=int, default=64)
     parser.add_argument('-o', '--output', help='Output file', type=str, default='.')
 
     return parser.parse_args()
 
 
-def create_output(grn_file, pe_type, copies_qty, states, bus_width, output):
+def create_output(grn_file, copies_qty, states, bus_width, output):
     grn_content = Grn2dot(grn_file)
-    if pe_type == 0:
-        eq_conf_string = generate_eq_mem_config(grn_content)
-    conf = generate_grn_config(grn_content, pe_type, copies_qty, states, bus_width)
+    #if pe_type == 0:
+    eq_conf_string = generate_eq_mem_config(grn_content)
+    conf = generate_grn_config(grn_content, copies_qty, states, bus_width)
 
     with open(output + '.csv', 'w') as f:
         for c in range(len(conf)):
@@ -48,7 +46,7 @@ def main():
         args.output = running_path
 
     if args.grn and args.states:
-        create_output(args.grn, args.pe_type, args.copies, args.states, args.width, args.output)
+        create_output(args.grn, (args.blocks * args.threads), args.states, args.width, args.output)
     else:
         msg = 'Missing parameters. Run create_grn_input -h to see all parameters needed'
         raise Exception(msg)

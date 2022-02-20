@@ -53,14 +53,14 @@ def create_project(grn_root, grn_file, blocks, threads, pe_type, name, output_pa
     m = acc_axi.create_kernel_top(name)
     m.to_verilog(hw_path + 'src/%s.v' % name)
 
-    acc_config = '#define NUM_CHANNELS (%d)\n' % blocks
-    acc_config += '#define NUM_BLOCKS (%d)\n' % blocks
-    acc_config += '#define NUM_THREADS (%d)\n' % threads
+    acc_config = '#define NUM_CHANNELS (%d)\n' % grnacc.blocks
+    acc_config += '#define NUM_BLOCKS (%d)\n' % grnacc.blocks
+    acc_config += '#define NUM_THREADS (%d)\n' % grnacc.threads
     acc_config += '#define NUM_NOS (%d)\n' % grnacc.nodes_qty
-    acc_config += '#define STATE_SIZE_WORDS (%d)\n' % int(ceil(grnacc.nodes_qty / bus_width))
-    acc_config += '#define ACC_DATA_BYTES (%d)\n' % int(grnacc.axi_bus_data_width / 8)
-    acc_config += '#define PE_TYPE (%d)\n' % int(pe_type)
-    acc_config += '#define MEM_CONF_BYTES (%d)\n' % int(eq_bytes)
+    acc_config += '#define STATE_SIZE_WORDS (%d)\n' % ceil(grnacc.nodes_qty / bus_width)
+    acc_config += '#define ACC_DATA_BYTES (%d)\n' % (grnacc.axi_bus_data_width // 8)
+    acc_config += '#define PE_TYPE (%d)\n' % grnacc.pe_type
+    acc_config += '#define MEM_CONF_BYTES (%d)\n' % eq_bytes
 
     num_axis_str = 'NUM_M_AXIS=%d' % grnacc.get_num_in()
     conn_str = acc_axi.get_connectivity_config(name)

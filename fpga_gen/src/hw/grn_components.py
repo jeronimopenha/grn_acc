@@ -162,7 +162,7 @@ class GrnComponents:
         self.cache[name] = m
         return m
 
-    def create_grn_core(self, grn_content:Grn2dot, pe_type, total_eq_bits, bus_width):
+    def create_grn_core(self, grn_content: Grn2dot, pe_type, total_eq_bits, bus_width):
         name = ""
         if pe_type == 0:
             name = 'grn_naive_core'
@@ -172,7 +172,7 @@ class GrnComponents:
             return self.cache[name]
         m = Module(name)
 
-        core_id = m.Parameter('core_id', 0)
+        core_id = m.Parameter('core_id', 0, 16)
 
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
@@ -299,7 +299,7 @@ class GrnComponents:
                             Cat(
                                 Int(0, (bits_to_add), 2),
                                 actual_state_s1,
-                                Int(core_id, 16, 2),
+                                core_id,
                                 transient_counter,
                                 period_counter
                             )
@@ -307,7 +307,7 @@ class GrnComponents:
                             else
                             Cat(
                                 actual_state_s1,
-                                Int(core_id, 16, 2),
+                                core_id,
                                 transient_counter,
                                 period_counter
                             )
@@ -348,7 +348,7 @@ class GrnComponents:
         fifo = self.create_fifo()
         con = [('clk', clk), ('rst', rst), ('write_enable', fifo_write_enable), ('input_data', fifo_input_data),
                ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
-               ('empty', fifo_empty), ('almost_empty', output_almost_empty), ('almostfull', fifo_almost_full)]
+               ('empty', fifo_empty), ('almostempty', output_almost_empty), ('almostfull', fifo_almost_full)]
         par = [('FIFO_WIDTH', bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'grn_naive_core_output_fifo', par, con)
 
@@ -432,6 +432,8 @@ class GrnComponents:
             return self.cache[name]
         m = Module(name)
 
+        pe_id = m.Parameter('pe_id', 0, 16)
+
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
         rst = m.Input('rst')
@@ -501,7 +503,7 @@ class GrnComponents:
         fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 4)
         fsm_pe_jo_wr_pe = m.Localparam('fsm_pe_jo_wr_pe', 5)
 
-        data_write_width = (ceil(grn_content.get_num_nodes + 16 + 16 + 16) / bus_width) * bus_width
+        data_write_width = ceil((grn_content.get_num_nodes() + 16 + 16 + 16) / bus_width) * bus_width
         qty_data_write = data_write_width // bus_width
         rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(qty_data_write)) + 1)
 
@@ -658,12 +660,11 @@ class GrnComponents:
         grn_final_state.assign(pe_end_conf[0:grn_final_state.width])
         if pe_type == 1:
             grn_equations_config.assign(pe_eq_conf[0:grn_equations_config.width])
-        par = []
+        par = [('core_id', pe_id)]
         con = [('clk', clk), ('rst', rst), ('start', start_grn), ('initial_state', grn_initial_state),
                ('final_state', grn_final_state), ('output_read_enable', grn_output_read_enable),
                ('output_valid', grn_output_valid), ('output_data', grn_output_data),
-               ('output_available', grn_output_available), ('output_almost_empty', grn_output_almost_empty),
-               ('output_almost_empty', grn_output_available)]
+               ('output_available', grn_output_available), ('output_almost_empty', grn_output_almost_empty)]
         if pe_type == 1:
             con.append(('equations_config', grn_equations_config))
         grn = self.create_grn_core(grn_content, pe_type, total_eq_bits, bus_width)
@@ -675,11 +676,10 @@ class GrnComponents:
                ('input_data', fifo_out_input_data),
                ('output_read_enable', pe_output_read_enable), ('output_valid', pe_output_valid),
                ('output_data', pe_output_data), ('empty', fifo_out_empty),
-               ('almost_empty', pe_output_almost_empty)('almostfull', fifo_out_almost_full)]
+               ('almostempty', pe_output_almost_empty), ('almostfull', fifo_out_almost_full)]
         par = [('FIFO_WIDTH', bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data_write)))]
         m.Instance(fifo, 'pe_naive_fifo_out', par, con)
 
         initialize_regs(m)
         self.cache[name] = m
         return m
-

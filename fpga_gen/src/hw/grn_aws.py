@@ -24,6 +24,8 @@ class GrnAws:
 
         m = Module(name)
 
+        grn_aws_pe_init_id = m.Parameter('grn_aws_pe_init_id', 0, 16)
+
         # interface I/O interface - Begin ------------------------------------------------------------------------------
         clk = m.Input('clk')
         rst = m.Input('rst')
@@ -169,8 +171,8 @@ class GrnAws:
 
         if self.threads < 1:
             raise ValueError("The threads value can't be lower than 1")
-        par = []
         for i in range(self.threads):
+            par = [('pe_id', grn_aws_pe_init_id + i)]
             con = [('clk', clk), ('rst', rst)]
             if i == 0:
                 con.append(('config_input_done', config_done))

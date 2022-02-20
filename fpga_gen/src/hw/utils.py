@@ -15,7 +15,7 @@ def state(val, size):
     return format(val, "0%dx" % size)
 
 
-def generate_grn_config(grn_content: Grn2dot, pe_type, copies_qty, states, bus_width):
+def generate_grn_config(grn_content: Grn2dot, copies_qty, states, bus_width):
     # config states step
     num_nos = grn_content.get_num_nodes()
     num_states = int(eval(states))

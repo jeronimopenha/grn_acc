@@ -36,19 +36,27 @@ Grn::~Grn(){
 void Grn::readInputFile(){
     std::string line;
     std::string str_conf;
-    std::ifstream myfile(m_input_file);
+    std::ifstream conffile(m_input_file);
     std::ifstream memfile(m_mem_cfg_file);
-    if (myfile.is_open()) {
+    if (conffile.is_open()) {
         // Verification of the lenght of input/output data
-        while (getline(myfile, line)) {
+        unsigned long total_input_size = 0;
+        unsigned long total_output_size = 0;
+        while (getline(conffile, line)) {
             strtok((char *)line.c_str(), ",");
             strtok(NULL, ",");
             strtok(NULL, ",");
             char *num_states = strtok(NULL, ",");
             auto sz = std::stoul(num_states, nullptr, 10);
-            m_input_size[0]++;
-            m_output_size[0]+=sz;
+            total_input_size ++;
+            total_output_size+=sz;
         }
+
+        for (int i = 0; i < NUM_CHANNELS; i++){
+            m_input_size[i] = (unsigned long) total_input_size / NUM_CHANNELS;
+            m_output_size[i] = (unsigned long) total_output_size / NUM_CHANNELS;
+        }
+        
 
         // Take the mem_conf data
         if (memfile.is_open()){
@@ -60,21 +68,20 @@ void Grn::readInputFile(){
         
         memfile.close();
         
-        myfile.clear();
-        myfile.seekg(0);
+        conffile.clear();
+        conffile.seekg(0);
 
         for (int j = 0; j < NUM_CHANNELS; ++j) {
             if(m_input_size[j] > 0){
                 if (PE_TYPE == 0){
                     m_acc_fpga->createInputQueue(j,sizeof(grn_conf_t)*m_input_size[j]);
-                    m_input_data[j] = (unsigned char*)m_acc_fpga->getInputQueue(j);
                 }else if (PE_TYPE == 1){
                     m_acc_fpga->createInputQueue(j,((sizeof(grn_conf_t)*m_input_size[j]) + sizeof(mem_conf_t)));
-                    m_input_data[j] = (unsigned char*)m_acc_fpga->getInputQueue(j);
                 }else{
                     std::cout << "Error: pe_type not defined." << std::endl;
                     exit(255);
                 }
+                m_input_data[j] = (unsigned char*)m_acc_fpga->getInputQueue(j);
             }
             if(m_output_size[j] > 0){
                 m_acc_fpga->createOutputQueue(j,sizeof(grn_data_out_t)*m_output_size[j]);
@@ -82,31 +89,40 @@ void Grn::readInputFile(){
             }
         }
         
-       
-        int c = 0;
-        grn_conf_t * grn_conf_ptr = (grn_conf_t *)m_input_data[0];
         if (PE_TYPE == 1){
-            mem_conf_t * mem_conf_ptr = (mem_conf_t *)m_input_data[0];
-            for(int i = MEM_CONF_BYTES-1, p = 0; i >= 0;--i,p+=2){
-                mem_conf_ptr[0].mem_conf[i] = std::stoul(str_conf.substr(p,2), nullptr, 16);
+            for (int j = 0; j < NUM_CHANNELS; ++j) {
+                mem_conf_t * mem_conf_ptr = (mem_conf_t *)m_input_data[j];
+                for(int i = MEM_CONF_BYTES-1, p = 0; i >= 0;--i,p+=2){
+                    mem_conf_ptr[0].mem_conf[i] = std::stoul(str_conf.substr(p,2), nullptr, 16);
+                }
             }
-            grn_conf_ptr = (grn_conf_t *) &m_input_data[0][MEM_CONF_BYTES];
         }
          
-        while (getline(myfile, line)) {
-            strtok((char *)line.c_str(), ",");
-            char *init_state = strtok(NULL, ",");
-            char *end_state = strtok(NULL, ",");
-            strtok(NULL, ",");
-            std::string init_state_str(init_state);
-            std::string end_state_str(end_state);
-            for(int i = (STATE_SIZE_WORDS * 4)-1,p = 0; i >= 0;--i,p+=2){
-                grn_conf_ptr[c].init_state[i] = std::stoul(init_state_str.substr(p,2), nullptr, 16);
-                grn_conf_ptr[c].end_state[i] = std::stoul(end_state_str.substr(p,2), nullptr, 16);
+        for (int j = 0; j < NUM_CHANNELS; ++j) {
+            grn_conf_t * grn_conf_ptr;
+            if (PE_TYPE == 0){
+                grn_conf_ptr = (grn_conf_t *)m_input_data[j];
+            }else if(PE_TYPE == 1){
+                grn_conf_ptr = (grn_conf_t *) &m_input_data[j][MEM_CONF_BYTES]; 
+            }else{
+                std::cout << "Error: pe_type not defined." << std::endl;
+                exit(255);
             }
-            c++;
+            for (unsigned long k = 0; k < m_input_size[j]; k++){
+                getline(conffile, line);
+                strtok((char *)line.c_str(), ",");
+                char *init_state = strtok(NULL, ",");
+                char *end_state = strtok(NULL, ",");
+                strtok(NULL, ",");
+                std::string init_state_str(init_state);
+                std::string end_state_str(end_state);
+                for(int i = (STATE_SIZE_WORDS * 4)-1,p = 0; i >= 0;--i,p+=2){
+                    grn_conf_ptr[k].init_state[i] = std::stoul(init_state_str.substr(p,2), nullptr, 16);
+                    grn_conf_ptr[k].end_state[i] = std::stoul(end_state_str.substr(p,2), nullptr, 16);
+                }
+            }
         }
-        myfile.close();
+        conffile.close();
     }
     else{
         std::cout << "Error: input file not found." << std::endl;
@@ -119,31 +135,30 @@ void Grn::run(){
     m_acc_fpga->execute();
 }
 void Grn::savePerfReport(){
-  std::ofstream myfile("performance_report.csv");
-  myfile << "Name,Initialization(ms),Size input data(bytes),Data copy HtoD(ms),Size output data(bytes),";
-  myfile << "Data copy DtoH(ms),Execution time(ms),Total execution time(ms)" << std::endl;
-  myfile << m_kernel_name << ",";
-  myfile << m_acc_fpga->getInitTime()+m_acc_fpga->getSetArgsTime() << ",";
-  myfile << m_acc_fpga->getTotalInputSize() << ",";
-  myfile << m_acc_fpga->getDataCopyHtoDTime() << ",";
-  myfile << m_acc_fpga->getDataCopyDtoHTime() << ",";
-  myfile << m_acc_fpga->getExecTime() << ",";
-  myfile << m_acc_fpga->getTotalTime() << std::endl;
+  std::ofstream reportfile("performance_report.csv");
+  reportfile << "Name,Initialization(ms),Size input data(bytes),Data copy HtoD(ms),Size output data(bytes),";
+  reportfile << "Data copy DtoH(ms),Execution time(ms),Total execution time(ms)" << std::endl;
+  reportfile << m_kernel_name << ",";
+  reportfile << m_acc_fpga->getInitTime()+m_acc_fpga->getSetArgsTime() << ",";
+  reportfile << m_acc_fpga->getTotalInputSize() << ",";
+  reportfile << m_acc_fpga->getDataCopyHtoDTime() << ",";
+  reportfile << m_acc_fpga->getDataCopyDtoHTime() << ",";
+  reportfile << m_acc_fpga->getExecTime() << ",";
+  reportfile << m_acc_fpga->getTotalTime() << std::endl;
 }
 void Grn::saveGrnOutput(){
-    std::ofstream myfile(m_output_file);
+    std::ofstream output_data_file(m_output_file);
+    output_data_file << "b_state" << "," << "core_id" << "," << "period" << "," << "transient" << std::endl;
     for (int k = 0; k < NUM_CHANNELS; ++k) {
-        myfile << "i_state" << "," << "b_state" << "," << "period" << "," << "transient" << std::endl;
         for(unsigned long i = 0; i < m_output_size[k];i++){
-            std::stringstream bstate,istate;
+            std::stringstream bstate;
             for(int j=0; j<(STATE_SIZE_WORDS * 4); ++j){
-                istate << std::hex << (int)m_output_data[k][i].i_state[j];
                 bstate << std::hex << (int)m_output_data[k][i].b_state[j];
             }
-            myfile << istate.str() << "," << bstate.str() << "," << m_output_data[k][i].period << "," << m_output_data[k][i].transient << std::endl;
+            output_data_file << bstate.str() << ","<< m_output_data[k][i].core_id << "," << m_output_data[k][i].period << "," << m_output_data[k][i].transient << std::endl;
             //printf("%d\n",m_output_data[k][i].sum);
         }
     }
-    myfile.close();
+    output_data_file.close();
 }
 

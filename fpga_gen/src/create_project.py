@@ -38,8 +38,9 @@ def create_project(grn_root, grn_file, blocks, threads, pe_type, name, output_pa
     eq_bits = 0
     for g in grn_content.get_grn_mem_specifications():
         eq_bits = eq_bits + int(pow(2, len(g[2])))
-    total_eq_bits = ceil(eq_bits / bus_width) * bus_width // 8
+    total_eq_bits = ceil(eq_bits / bus_width) * bus_width
     eq_bytes = total_eq_bits // 8
+    bits_width = grn_content.get_num_nodes() + 16 + 16 + 16
     grnacc = GrnAccelerator(grn_content, pe_type, blocks, threads, total_eq_bits, bus_width)
     acc_axi = AccAXIInterface(grnacc)
 
@@ -58,6 +59,8 @@ def create_project(grn_root, grn_file, blocks, threads, pe_type, name, output_pa
     acc_config += '#define NUM_THREADS (%d)\n' % grnacc.threads
     acc_config += '#define NUM_NOS (%d)\n' % grnacc.nodes_qty
     acc_config += '#define STATE_SIZE_WORDS (%d)\n' % ceil(grnacc.nodes_qty / bus_width)
+    acc_config += '#define BUS_WIDTH_BYTES (%d)\n' % (grnacc.bus_width // 8)
+    acc_config += '#define OUTPUT_DATA_BYTES (%d)\n' % (ceil(bits_width / bus_width) * bus_width //8)
     acc_config += '#define ACC_DATA_BYTES (%d)\n' % (grnacc.axi_bus_data_width // 8)
     acc_config += '#define PE_TYPE (%d)\n' % grnacc.pe_type
     acc_config += '#define MEM_CONF_BYTES (%d)\n' % eq_bytes

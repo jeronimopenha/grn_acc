@@ -188,7 +188,7 @@ class GrnComponents:
         if pe_type == 1:
             # The grn mem core configuration consists in two buses with the initial state and the final state to be
             # searched and the content of a 1 bit memory for each equation
-            equations_config = m.Input('equations_config', total_eq_bits)
+            eq_conf = m.Input('eq_conf', total_eq_bits)
         # Configuration Inputs - End ----------------------------------------------------------------------------------
 
         # Output data Control interface - Begin -----------------------------------------------------------------------
@@ -398,7 +398,7 @@ class GrnComponents:
             # assign each bus in the correct place of configuration memory
             last_idx = 0
             for eq in eq_wires:
-                eq.assign(equations_config[last_idx:last_idx + eq.width])
+                eq.assign(eq_conf[last_idx:last_idx + eq.width])
                 last_idx = last_idx + eq.width
 
             # Assigns to define each bit is used on each equation memory
@@ -488,7 +488,7 @@ class GrnComponents:
         grn_initial_state = m.Wire('grn_initial_state', grn_content.get_num_nodes())
         grn_final_state = m.Wire('grn_final_state', grn_content.get_num_nodes())
         if pe_type == 1:
-            grn_equations_config = m.Wire('grn_equations_config', total_eq_bits)
+            grn_eq_conf = m.Wire('grn_eq_conf', total_eq_bits)
         grn_output_read_enable = m.Reg('grn_output_read_enable')
         grn_output_valid = m.Wire('grn_output_valid')
         grn_output_data = m.Wire('grn_output_data', bus_width)
@@ -563,7 +563,10 @@ class GrnComponents:
                                 If(config_eq_counter == (pe_eq_conf.width // bus_width) - 1)(
                                     fsm_config(fsm_config_other),
                                 ),
-                                pe_eq_conf(Cat(config_input, pe_eq_conf[bus_width:pe_eq_conf.width])),
+                                pe_eq_conf(Cat(config_input, pe_eq_conf[bus_width:pe_eq_conf.width]))
+                                if (pe_eq_conf.width // bus_width) > 1
+                                else
+                                pe_eq_conf(config_input),
                                 config_output_valid(config_input_valid),
                             ),
                         ),
@@ -659,14 +662,14 @@ class GrnComponents:
         grn_initial_state.assign(pe_init_conf[0:grn_initial_state.width])
         grn_final_state.assign(pe_end_conf[0:grn_final_state.width])
         if pe_type == 1:
-            grn_equations_config.assign(pe_eq_conf[0:grn_equations_config.width])
+            grn_eq_conf.assign(pe_eq_conf[0:grn_eq_conf.width])
         par = [('core_id', pe_id)]
         con = [('clk', clk), ('rst', rst), ('start', start_grn), ('initial_state', grn_initial_state),
                ('final_state', grn_final_state), ('output_read_enable', grn_output_read_enable),
                ('output_valid', grn_output_valid), ('output_data', grn_output_data),
                ('output_available', grn_output_available), ('output_almost_empty', grn_output_almost_empty)]
         if pe_type == 1:
-            con.append(('equations_config', grn_equations_config))
+            con.append(('eq_conf', grn_eq_conf))
         grn = self.create_grn_core(grn_content, pe_type, total_eq_bits, bus_width)
         m.Instance(grn, grn.name, par, con)
 

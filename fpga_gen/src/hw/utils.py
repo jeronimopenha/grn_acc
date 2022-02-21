@@ -19,7 +19,7 @@ def generate_grn_config(grn_content: Grn2dot, copies_qty, states, bus_width):
     # config states step
     num_nos = grn_content.get_num_nodes()
     num_states = int(eval(states))
-    num_copies = int(eval(copies_qty))
+    num_copies = copies_qty
     num_states = min(2 ** num_nos, num_states)
 
     l = int(ceil(num_nos / bus_width) * 4) * 2
@@ -45,7 +45,7 @@ def generate_grn_config(grn_content: Grn2dot, copies_qty, states, bus_width):
     return conf
 
 
-def generate_eq_mem_config(grn_content: Grn2dot, bus_width):
+def generate_eq_mem_config(grn_content: Grn2dot):
     # equation config generation step
     str_mem_conf = ""
     # Finding the true table for each equation

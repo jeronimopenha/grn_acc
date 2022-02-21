@@ -22,7 +22,7 @@ def generate_grn_config(grn_content: Grn2dot, copies_qty, states, bus_width):
     num_copies = copies_qty
     num_states = min(2 ** num_nos, num_states)
 
-    l = int(ceil(num_nos / bus_width) * 4) * 2
+    l = int(ceil(num_nos / bus_width) * bus_width // 8) * 2
 
     state_per_copy = int(num_states / num_copies)
     state_rest = int(num_states % num_copies)

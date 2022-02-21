@@ -39,8 +39,8 @@ class GrnAws:
         grn_aws_read_data = m.Input('grn_aws_read_data', self.bus_width)
 
         grn_aws_available_write = m.Input('grn_aws_available_write')
-        grn_aws_request_write = m.OutputReg('grn_aws_request_write')
-        grn_aws_write_data = m.OutputReg('grn_aws_write_data', self.bus_width)
+        grn_aws_request_write = m.Output('grn_aws_request_write')
+        grn_aws_write_data = m.Output('grn_aws_write_data', self.bus_width)
 
         grn_aws_done = m.Output('grn_aws_done')
         # interface I/O interface - End --------------------------------------------------------------------------------
@@ -56,6 +56,7 @@ class GrnAws:
         grn_pe_output_valid = m.Wire('grn_pe_output_valid', self.threads)
         grn_pe_output_data = m.Wire('grn_pe_output_data', self.bus_width, self.threads)
         grn_pe_output_available = m.Wire('grn_pe_output_available', self.threads)
+        grn_pe_output_almost_empty = m.Wire('grn_pe_output_almost_empty', self.threads)
         m.EmbeddedCode('// grn pe instantiation regs and wires - end')
         # grn pe instantiation regs and wires - end --------------------------------------------------
 
@@ -119,40 +120,34 @@ class GrnAws:
         m.EmbeddedCode('\n//Data Consumer - Begin')
         consume_rd_enable = m.Reg('consume_rd_enable')
         consume_rd_available = m.Wire('consume_rd_available')
+        consume_rd_almost_empty = m.Wire('consume_rd_almost_empty')
         consume_rd_valid = m.Wire('consume_rd_valid')
         consume_rd_data = m.Wire('consume_rd_data', self.bus_width)
+        flag_read = m.Reg('flag_read')
 
-        fsm_consume_data = m.Reg('fsm_consume_data', 2)
-        fsm_consume_data_rq_rd = m.Localparam('fsm_consume_data_rq_rd', 0)
-        fsm_consume_data_rd = m.Localparam('fsm_consume_data_rd', 1)
-        fsm_consume_data_wr = m.Localparam('fsm_consume_data_wr', 2)
+        grn_aws_request_write.assign(consume_rd_valid)
+        grn_aws_write_data.assign(consume_rd_data)
+
+        #fsm_consume_data = m.Reg('fsm_consume_data', 2)
+        #fsm_consume_data_rq_rd = m.Localparam('fsm_consume_data_rq_rd', 0)
+        #fsm_consume_data_rd = m.Localparam('fsm_consume_data_rd', 1)
+        #fsm_consume_data_wr = m.Localparam('fsm_consume_data_wr', 2)
 
         m.Always(Posedge(clk))(
             If(rst)(
                 consume_rd_enable(0),
-                grn_aws_request_write(0),
-                fsm_consume_data(fsm_consume_data_rq_rd),
+                flag_read(0),
+                #fsm_consume_data(fsm_consume_data_rq_rd),
             ).Else(
                 consume_rd_enable(0),
-                grn_aws_request_write(0),
-                Case(fsm_consume_data)(
-                    When(fsm_consume_data_rq_rd)(
-                        If(consume_rd_available)(
+                If(grn_aws_available_write)(
+                    If(~consume_rd_almost_empty)(
+                        consume_rd_enable(1),
+                    ).Elif(consume_rd_available)(
+                        If(flag_read)(
                             consume_rd_enable(1),
-                            fsm_consume_data(fsm_consume_data_rd)
-                        )
-                    ),
-                    When(fsm_consume_data_rd)(
-                        If(consume_rd_valid)(
-                            grn_aws_write_data(consume_rd_data),
-                            fsm_consume_data(fsm_consume_data_wr),
-                        )
-                    ),
-                    When(fsm_consume_data_wr)(
-                        If(grn_aws_available_write)(
-                            grn_aws_request_write(1),
-                            fsm_consume_data(fsm_consume_data_rq_rd),
                         ),
+                        flag_read(~flag_read),
                     ),
                 ),
             )
@@ -183,6 +178,7 @@ class GrnAws:
                 con.append(('pe_output_valid', consume_rd_valid))
                 con.append(('pe_output_data', consume_rd_data))
                 con.append(('pe_output_available', consume_rd_available))
+                con.append(('pe_output_almost_empty', consume_rd_almost_empty))
             else:
                 con.append(('config_input_done', grn_pe_config_output_done[i - 1]))
                 con.append(('config_input_valid', grn_pe_config_output_valid[i - 1]))
@@ -192,6 +188,7 @@ class GrnAws:
                 con.append(('pe_output_valid', grn_pe_output_valid[i - 1]))
                 con.append(('pe_output_data', grn_pe_output_data[i - 1]))
                 con.append(('pe_output_available', grn_pe_output_available[i - 1]))
+                con.append(('pe_output_almost_empty', grn_pe_output_almost_empty[i-1]))
 
             con.append(('config_output_done', grn_pe_config_output_done[i]))
             con.append(('config_output_valid', grn_pe_config_output_valid[i]))
@@ -201,6 +198,7 @@ class GrnAws:
             con.append(('pe_bypass_valid', grn_pe_output_valid[i]))
             con.append(('pe_bypass_data', grn_pe_output_data[i]))
             con.append(('pe_bypass_available', grn_pe_output_available[i]))
+            con.append(('pe_bypass_almost_empty', grn_pe_output_almost_empty[i]))
 
             m.Instance(grn_pe, grn_pe.name + "_" + str(i), par, con)
 

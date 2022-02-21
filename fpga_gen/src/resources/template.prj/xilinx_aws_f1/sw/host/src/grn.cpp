@@ -116,10 +116,12 @@ void Grn::readInputFile(){
                 strtok(NULL, ",");
                 std::string init_state_str(init_state);
                 std::string end_state_str(end_state);
-                for(int i = (STATE_SIZE_WORDS * 4)-1,p = 0; i >= 0;--i,p+=2){
+                for(int i = (STATE_SIZE_WORDS * BUS_WIDTH_BYTES)-1,p = 0; i >= 0;--i,p+=2){
                     grn_conf_ptr[k].init_state[i] = std::stoul(init_state_str.substr(p,2), nullptr, 16);
                     grn_conf_ptr[k].end_state[i] = std::stoul(end_state_str.substr(p,2), nullptr, 16);
+                    //printf("%d ",grn_conf_ptr[k].end_state[i]);
                 }
+                //printf("\n");
             }
         }
         conffile.close();
@@ -152,7 +154,7 @@ void Grn::saveGrnOutput(){
     for (int k = 0; k < NUM_CHANNELS; ++k) {
         for(unsigned long i = 0; i < m_output_size[k];i++){
             std::stringstream bstate;
-            for(int j=0; j<(STATE_SIZE_WORDS * 4); ++j){
+            for(int j=0; j<(STATE_SIZE_WORDS * BUS_WIDTH_BYTES); ++j){
                 bstate << std::hex << (int)m_output_data[k][i].b_state[j];
             }
             output_data_file << bstate.str() << ","<< m_output_data[k][i].core_id << "," << m_output_data[k][i].period << "," << m_output_data[k][i].transient << std::endl;

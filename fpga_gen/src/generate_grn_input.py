@@ -21,7 +21,6 @@ def create_args():
 
 def create_output(grn_file, copies_qty, states, bus_width, output):
     grn_content = Grn2dot(grn_file)
-    #if pe_type == 0:
     eq_conf_string = generate_eq_mem_config(grn_content)
     conf = generate_grn_config(grn_content, copies_qty, states, bus_width)
 

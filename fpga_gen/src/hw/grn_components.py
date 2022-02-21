@@ -70,8 +70,8 @@ class GrnComponents:
         m = Module(name)
         FIFO_WIDTH = m.Parameter('FIFO_WIDTH', 32)
         FIFO_DEPTH_BITS = m.Parameter('FIFO_DEPTH_BITS', 8)
-        FIFO_ALMOSTFULL_THRESHOLD = m.Parameter('FIFO_ALMOSTFULL_THRESHOLD', Power(2, FIFO_DEPTH_BITS) - 2)
-        FIFO_ALMOSTEMPTY_THRESHOLD = m.Parameter('FIFO_ALMOSTEMPTY_THRESHOLD', 2)
+        FIFO_ALMOSTFULL_THRESHOLD = m.Parameter('FIFO_ALMOSTFULL_THRESHOLD', Power(2, FIFO_DEPTH_BITS) - 4)
+        FIFO_ALMOSTEMPTY_THRESHOLD = m.Parameter('FIFO_ALMOSTEMPTY_THRESHOLD', 4)
 
         clk = m.Input('clk')
         rst = m.Input('rst')
@@ -454,6 +454,7 @@ class GrnComponents:
         pe_bypass_valid = m.Input('pe_bypass_valid')
         pe_bypass_data = m.Input('pe_bypass_data', bus_width)
         pe_bypass_available = m.Input('pe_bypass_available')
+        pe_bypass_almost_empty = m.Input('pe_bypass_almost_empty')
         # Output data Control interface - End -------------------------------------------------------------------------
 
         # Output data Control interface - Begin -----------------------------------------------------------------------
@@ -495,17 +496,16 @@ class GrnComponents:
         grn_output_available = m.Wire('grn_output_available')
         grn_output_almost_empty = m.Wire('grn_output_almost_empty')
 
-        fsm_pe_jo = m.Reg('fsm_pe_jo', 3)
+        fsm_pe_jo = m.Reg('fsm_pe_jo', 2)
         fsm_pe_jo_look_grn = m.Localparam('fsm_pe_jo_look_grn', 0)
         fsm_pe_jo_rd_grn = m.Localparam('fsm_pe_jo_rd_grn', 1)
-        fsm_pe_jo_wr_grn = m.Localparam('fsm_pe_jo_wr_grn', 2)
-        fsm_pe_jo_look_pe = m.Localparam('fsm_pe_jo_look_pe', 3)
-        fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 4)
-        fsm_pe_jo_wr_pe = m.Localparam('fsm_pe_jo_wr_pe', 5)
+        fsm_pe_jo_look_pe = m.Localparam('fsm_pe_jo_look_pe', 2)
+        fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 3)
 
         data_write_width = ceil((grn_content.get_num_nodes() + 16 + 16 + 16) / bus_width) * bus_width
         qty_data_write = data_write_width // bus_width
-        rd_wr_counter = m.Reg('rd_wr_counter', ceil(log2(qty_data_write)) + 1)
+        wr_counter = m.Reg('wr_counter', ceil(log2(qty_data_write)) + 1)
+        rd_counter = m.Reg('rd_counter', ceil(log2(qty_data_write)) + 1)
 
         # Fifo out wires and regs
         m.EmbeddedCode("\n//Fifo out wires and regs")
@@ -513,6 +513,7 @@ class GrnComponents:
         fifo_out_input_data = m.Reg('fifo_out_input_data', bus_width)
         fifo_out_empty = m.Wire('fifo_out_empty')
         fifo_out_almost_full = m.Wire('fifo_out_almost_full')
+        flag_read = m.Reg('flag_read')
 
         # configuration sector -----------------------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration sector - begin')
@@ -595,61 +596,79 @@ class GrnComponents:
             If(rst)(
                 start_grn(0),
                 grn_output_read_enable(0),
-                fifo_out_write_enable(0),
                 pe_bypass_read_enable(0),
+                fifo_out_write_enable(0),
                 fsm_pe_jo(fsm_pe_jo_look_grn),
             ).Elif(is_configured)(
                 start_grn(1),
                 grn_output_read_enable(0),
-                fifo_out_write_enable(0),
                 pe_bypass_read_enable(0),
+                fifo_out_write_enable(0),
                 Case(fsm_pe_jo)(
                     When(fsm_pe_jo_look_grn)(
                         fsm_pe_jo(fsm_pe_jo_look_pe),
                         If(grn_output_available)(
-                            rd_wr_counter(0),
+                            wr_counter(0),
+                            rd_counter(0),
+                            flag_read(1),
                             fsm_pe_jo(fsm_pe_jo_rd_grn),
                         )
                     ),
                     When(fsm_pe_jo_rd_grn)(
-                        If(AndList(grn_output_available, ~fifo_out_almost_full))(
-                            grn_output_read_enable(1),
-                            fsm_pe_jo(fsm_pe_jo_wr_grn)
-                        )
-                    ),
-                    When(fsm_pe_jo_wr_grn)(
+                        If(rd_counter < qty_data_write)(
+                            If(~fifo_out_almost_full)(
+                                If(~grn_output_almost_empty)(
+                                    grn_output_read_enable(1),
+                                    rd_counter.inc(),
+                                ).Elif(grn_output_available)(
+                                    If(flag_read)(
+                                        grn_output_read_enable(1),
+                                        rd_counter.inc(),
+                                    ),
+                                    flag_read(~flag_read),
+                                ),
+                            ),
+                        ),
                         If(grn_output_valid)(
-                            fsm_pe_jo(fsm_pe_jo_rd_grn),
-                            If(rd_wr_counter == qty_data_write - 1)(
+                            If(wr_counter == qty_data_write - 1)(
                                 fsm_pe_jo(fsm_pe_jo_look_pe)
                             ),
                             fifo_out_input_data(grn_output_data),
-                            rd_wr_counter.inc(),
                             fifo_out_write_enable(1),
+                            wr_counter.inc(),
                         ),
                     ),
                     When(fsm_pe_jo_look_pe)(
                         fsm_pe_jo(fsm_pe_jo_look_grn),
                         If(pe_bypass_available)(
-                            rd_wr_counter(0),
+                            wr_counter(0),
+                            rd_counter(0),
+                            flag_read(1),
                             fsm_pe_jo(fsm_pe_jo_rd_pe),
                         )
                     ),
                     When(fsm_pe_jo_rd_pe)(
-                        If(AndList(pe_bypass_available, ~fifo_out_almost_full))(
-                            pe_bypass_read_enable(1),
-                            fsm_pe_jo(fsm_pe_jo_wr_pe)
-                        )
-                    ),
-                    When(fsm_pe_jo_wr_pe)(
+                        If(rd_counter < qty_data_write)(
+                            If(~fifo_out_almost_full)(
+                                If(~pe_bypass_almost_empty)(
+                                    pe_bypass_read_enable(1),
+                                    rd_counter.inc(),
+                                ).Elif(pe_bypass_available)(
+                                    If(flag_read)(
+                                        pe_bypass_read_enable(1),
+                                        rd_counter.inc(),
+                                    ),
+                                    flag_read(~flag_read),
+                                ),
+                            ),
+                        ),
                         If(pe_bypass_valid)(
-                            fsm_pe_jo(fsm_pe_jo_rd_pe),
-                            If(rd_wr_counter == qty_data_write - 1)(
+                            If(wr_counter == qty_data_write - 1)(
                                 fsm_pe_jo(fsm_pe_jo_look_grn)
                             ),
                             fifo_out_input_data(pe_bypass_data),
                             fifo_out_write_enable(1),
-                            rd_wr_counter.inc(),
+                            wr_counter.inc(),
                         ),
                     ),
                 )

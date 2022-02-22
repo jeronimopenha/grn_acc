@@ -178,6 +178,7 @@ class GrnComponents:
         clk = m.Input('clk')
         rst = m.Input('rst')
         start = m.Input('start')
+        done = m.OutputReg('done')
         # Basic Input - End -------------------------------------------------------------------------------------------
 
         # Configuration inputs - Begin --------------------------------------------------------------------------------
@@ -251,6 +252,7 @@ class GrnComponents:
         m.Always(Posedge(clk))(
             If(rst)(
                 fifo_write_enable(0),
+                done(0),
                 fsm_naive(fsm_naive_set),
             ).Elif(start)(
                 fifo_write_enable(0),
@@ -335,6 +337,7 @@ class GrnComponents:
                         )
                     ),
                     When(fsm_naive_done)(
+                        done(fifo_empty)
                     )
                 )
             )
@@ -486,6 +489,7 @@ class GrnComponents:
         # regs and wires to control the grn core
         m.EmbeddedCode("// regs and wires to control the grn core")
         start_grn = m.Reg('start_grn')
+        grn_done = m.Wire('grn_done')
         grn_initial_state = m.Wire('grn_initial_state', grn_content.get_num_nodes())
         grn_final_state = m.Wire('grn_final_state', grn_content.get_num_nodes())
         if pe_type == 1:
@@ -496,11 +500,12 @@ class GrnComponents:
         grn_output_available = m.Wire('grn_output_available')
         grn_output_almost_empty = m.Wire('grn_output_almost_empty')
 
-        fsm_pe_jo = m.Reg('fsm_pe_jo', 2)
+        fsm_pe_jo = m.Reg('fsm_pe_jo', 3)
         fsm_pe_jo_look_grn = m.Localparam('fsm_pe_jo_look_grn', 0)
         fsm_pe_jo_rd_grn = m.Localparam('fsm_pe_jo_rd_grn', 1)
         fsm_pe_jo_look_pe = m.Localparam('fsm_pe_jo_look_pe', 2)
         fsm_pe_jo_rd_pe = m.Localparam('fsm_pe_jo_rd_pe', 3)
+        fsm_pe_jo_only_pe = m.Localparam('fsm_pe_jo_only_pe', 4)
 
         data_write_width = ceil((grn_content.get_num_nodes() + 16 + 16 + 16) / bus_width) * bus_width
         qty_data_write = data_write_width // bus_width
@@ -609,23 +614,17 @@ class GrnComponents:
                         fsm_pe_jo(fsm_pe_jo_look_pe),
                         If(grn_output_available)(
                             wr_counter(0),
-                            rd_counter(0),
-                            flag_read(1),
+                            rd_counter(1),
+                            grn_output_read_enable(1),
                             fsm_pe_jo(fsm_pe_jo_rd_grn),
                         )
                     ),
                     When(fsm_pe_jo_rd_grn)(
                         If(rd_counter < qty_data_write)(
                             If(~fifo_out_almost_full)(
-                                If(~grn_output_almost_empty)(
+                                If(grn_output_available)(
                                     grn_output_read_enable(1),
                                     rd_counter.inc(),
-                                ).Elif(grn_output_available)(
-                                    If(flag_read)(
-                                        grn_output_read_enable(1),
-                                        rd_counter.inc(),
-                                    ),
-                                    flag_read(~flag_read),
                                 ),
                             ),
                         ),
@@ -642,10 +641,16 @@ class GrnComponents:
                         fsm_pe_jo(fsm_pe_jo_look_grn),
                         If(pe_bypass_available)(
                             wr_counter(0),
-                            rd_counter(0),
-                            flag_read(1),
-                            fsm_pe_jo(fsm_pe_jo_rd_pe),
-                        )
+                            rd_counter(1),
+                            flag_read(0),
+                            pe_bypass_read_enable(1),
+                            If(~grn_done)(
+                                fsm_pe_jo(fsm_pe_jo_rd_pe),
+                            ).Else(
+                                fsm_pe_jo(fsm_pe_jo_only_pe),
+                            ),
+
+                        ),
                     ),
                     When(fsm_pe_jo_rd_pe)(
                         If(rd_counter < qty_data_write)(
@@ -671,6 +676,22 @@ class GrnComponents:
                             wr_counter.inc(),
                         ),
                     ),
+                    When(fsm_pe_jo_only_pe)(
+                        If(~fifo_out_almost_full)(
+                            If(~pe_bypass_almost_empty)(
+                                pe_bypass_read_enable(1),
+                            ).Elif(pe_bypass_available)(
+                                If(flag_read)(
+                                    pe_bypass_read_enable(1),
+                                ),
+                                flag_read(~flag_read),
+                            ),
+                        ),
+                        If(pe_bypass_valid)(
+                            fifo_out_input_data(pe_bypass_data),
+                            fifo_out_write_enable(1),
+                        ),
+                    ),
                 )
             )
         )
@@ -683,10 +704,11 @@ class GrnComponents:
         if pe_type == 1:
             grn_eq_conf.assign(pe_eq_conf[0:grn_eq_conf.width])
         par = [('core_id', pe_id)]
-        con = [('clk', clk), ('rst', rst), ('start', start_grn), ('initial_state', grn_initial_state),
-               ('final_state', grn_final_state), ('output_read_enable', grn_output_read_enable),
-               ('output_valid', grn_output_valid), ('output_data', grn_output_data),
-               ('output_available', grn_output_available), ('output_almost_empty', grn_output_almost_empty)]
+        con = [('clk', clk), ('rst', rst), ('start', start_grn), ('done', grn_done),
+               ('initial_state', grn_initial_state), ('final_state', grn_final_state),
+               ('output_read_enable', grn_output_read_enable), ('output_valid', grn_output_valid),
+               ('output_data', grn_output_data), ('output_available', grn_output_available),
+               ('output_almost_empty', grn_output_almost_empty)]
         if pe_type == 1:
             con.append(('eq_conf', grn_eq_conf))
         grn = self.create_grn_core(grn_content, pe_type, total_eq_bits, bus_width)

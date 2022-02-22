@@ -39,8 +39,8 @@ class GrnAws:
         grn_aws_read_data = m.Input('grn_aws_read_data', self.bus_width)
 
         grn_aws_available_write = m.Input('grn_aws_available_write')
-        grn_aws_request_write = m.Output('grn_aws_request_write')
-        grn_aws_write_data = m.Output('grn_aws_write_data', self.bus_width)
+        grn_aws_request_write = m.OutputReg('grn_aws_request_write')
+        grn_aws_write_data = m.OutputReg('grn_aws_write_data', self.bus_width)
 
         grn_aws_done = m.Output('grn_aws_done')
         # interface I/O interface - End --------------------------------------------------------------------------------
@@ -125,21 +125,14 @@ class GrnAws:
         consume_rd_data = m.Wire('consume_rd_data', self.bus_width)
         flag_read = m.Reg('flag_read')
 
-        grn_aws_request_write.assign(consume_rd_valid)
-        grn_aws_write_data.assign(consume_rd_data)
-
-        #fsm_consume_data = m.Reg('fsm_consume_data', 2)
-        #fsm_consume_data_rq_rd = m.Localparam('fsm_consume_data_rq_rd', 0)
-        #fsm_consume_data_rd = m.Localparam('fsm_consume_data_rd', 1)
-        #fsm_consume_data_wr = m.Localparam('fsm_consume_data_wr', 2)
-
         m.Always(Posedge(clk))(
             If(rst)(
                 consume_rd_enable(0),
                 flag_read(0),
-                #fsm_consume_data(fsm_consume_data_rq_rd),
+                grn_aws_request_write(0),
             ).Else(
                 consume_rd_enable(0),
+                grn_aws_request_write(0),
                 If(grn_aws_available_write)(
                     If(~consume_rd_almost_empty)(
                         consume_rd_enable(1),
@@ -149,6 +142,10 @@ class GrnAws:
                         ),
                         flag_read(~flag_read),
                     ),
+                ),
+                If(consume_rd_valid)(
+                    grn_aws_write_data(consume_rd_data),
+                    grn_aws_request_write(1),
                 ),
             )
         )

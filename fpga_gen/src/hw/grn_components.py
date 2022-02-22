@@ -477,7 +477,7 @@ class GrnComponents:
         pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf.width)
         pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
         pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width + pe_end_conf.width])
-        config_counter = m.Reg('config_counter', int(log2((pe_init_conf.width + pe_end_conf.width) // bus_width)))
+        config_counter = m.Reg('config_counter', ceil(log2((pe_init_conf.width + pe_end_conf.width) // bus_width)) + 1)
         if pe_type == 1:
             pe_eq_conf = m.Reg('pe_eq_conf', total_eq_bits)
             config_eq_counter = m.Reg('config_eq_counter', ceil(log2(total_eq_bits / bus_width)) + 1)

@@ -45,16 +45,16 @@ def generate_grn_config(grn_content: Grn2dot, copies_qty, states, bus_width):
     return conf
 
 
-def generate_eq_mem_config(grn_content: Grn2dot):
+def generate_eq_mem_config(grn_content: Grn2dot, bus_width):
     # equation config generation step
     str_mem_conf = ""
     # Finding the true table for each equation
     for g in grn_content.get_grn_mem_specifications():
         eq_bits = int(pow(2, len(g[2])))
         equation = grn_content.get_equations_dict()[g[0]]
-        equation = equation.replace('||', 'or')
-        equation = equation.replace('&&', 'and')
-        equation = equation.replace('!', 'not')
+        equation = equation.replace(' || ', ' or ')
+        equation = equation.replace(' && ', ' and ')
+        equation = equation.replace(' ! ', ' not ')
         idx_counter = 0
         for node in grn_content.get_nodes_vector():
             if node in equation:
@@ -69,9 +69,9 @@ def generate_eq_mem_config(grn_content: Grn2dot):
                 eq_values[j] = bool((i >> j) & 1)
             eq_ans = eval(equation)
             str_mem_conf = str(int(eq_ans)) + str_mem_conf
-    if len(str_mem_conf) % 32 > 0:
+    if len(str_mem_conf) % bus_width > 0:
         new_str = ""
-        for i in range(32 - (len(str_mem_conf) % 32)):
+        for i in range(bus_width - (len(str_mem_conf) % bus_width)):
             new_str = new_str + "0"
         str_mem_conf = new_str + str_mem_conf
     return str_mem_conf

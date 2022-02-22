@@ -21,7 +21,7 @@ def create_args():
 
 def create_output(grn_file, copies_qty, states, bus_width, output):
     grn_content = Grn2dot(grn_file)
-    eq_conf_string = generate_eq_mem_config(grn_content)
+    eq_conf_string = generate_eq_mem_config(grn_content, bus_width)
     conf = generate_grn_config(grn_content, copies_qty, states, bus_width)
 
     with open(output + '.csv', 'w') as f:

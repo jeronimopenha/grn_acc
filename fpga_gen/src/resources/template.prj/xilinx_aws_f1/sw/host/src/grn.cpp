@@ -144,9 +144,11 @@ void Grn::savePerfReport(){
   reportfile << m_acc_fpga->getInitTime()+m_acc_fpga->getSetArgsTime() << ",";
   reportfile << m_acc_fpga->getTotalInputSize() << ",";
   reportfile << m_acc_fpga->getDataCopyHtoDTime() << ",";
+  reportfile << m_acc_fpga->getTotalOutputSize() << ",";
   reportfile << m_acc_fpga->getDataCopyDtoHTime() << ",";
   reportfile << m_acc_fpga->getExecTime() << ",";
   reportfile << m_acc_fpga->getTotalTime() << std::endl;
+  reportfile.close();
 }
 void Grn::saveGrnOutput(){
     std::ofstream output_data_file(m_output_file);

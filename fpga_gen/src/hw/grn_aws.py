@@ -1,7 +1,6 @@
 from veriloggen import *
 from hw.grn_components import GrnComponents
 from hw.utils import initialize_regs
-from math import ceil
 
 p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not p in sys.path:
@@ -133,30 +132,63 @@ class GrnAws:
         consume_rd_almost_empty = m.Wire('consume_rd_almost_empty')
         consume_rd_valid = m.Wire('consume_rd_valid')
         consume_rd_data = m.Wire('consume_rd_data', self.bus_width)
+        fsm_consume = m.Reg('fsm_consume',2)
+        fsm_consume_consume = m.Reg('fsm_consume_consume',0)
+        fsm_consume_going_stall = m.Localparam('fsm_consume_going_stall',1)
+        fsm_consume_stalled = m.Localparam('fsm_consume_stalled',2)
         flag_read = m.Reg('flag_read')
+        flag_buffer = m.Reg('flag_buffer')
 
         m.Always(Posedge(clk))(
             If(rst)(
                 consume_rd_enable(0),
                 flag_read(0),
                 grn_aws_request_write(0),
+                fsm_consume(fsm_consume_consume)
             ).Else(
                 consume_rd_enable(0),
                 grn_aws_request_write(0),
-                If(grn_aws_available_write)(
-                    If(~consume_rd_almost_empty)(
-                        consume_rd_enable(1),
-                    ).Elif(consume_rd_available)(
-                        If(flag_read)(
-                            consume_rd_enable(1),
+                Case(fsm_consume)(
+                    When(fsm_consume_consume)(
+                        If(grn_aws_available_write)(
+                            If(~consume_rd_almost_empty)(
+                                consume_rd_enable(1),
+                            ).Elif(consume_rd_available)(
+                                If(flag_read)(
+                                    consume_rd_enable(1),
+                                ),
+                                flag_read(~flag_read),
+                            ),
                         ),
-                        flag_read(~flag_read),
+                        If(consume_rd_valid)(
+                            grn_aws_write_data(consume_rd_data),
+                            If(grn_aws_available_write)(
+                                grn_aws_request_write(1),
+                            ).Else(
+                                fsm_consume(fsm_consume_going_stall)
+                            ),
+                        ),
                     ),
-                ),
-                If(consume_rd_valid)(
-                    grn_aws_write_data(consume_rd_data),
-                    grn_aws_request_write(1),
-                ),
+                    When(fsm_consume_going_stall)(
+                        If(consume_rd_valid)(
+                            flag_buffer(1)
+                        ).Else(
+                            flag_buffer(0)
+                        ),
+                        fsm_consume(fsm_consume_stalled)
+                    ),
+                    When(fsm_consume_stalled)(
+                        If(grn_aws_available_write)(
+                            If(flag_buffer)(
+                                grn_aws_write_data(consume_rd_data),
+                                flag_buffer(0),
+                            ).Else(
+                                fsm_consume(fsm_consume_consume),
+                            ),
+                            grn_aws_request_write(1),
+                        ),
+                    ),
+                )
             )
         )
         m.EmbeddedCode('//Data Consumer - Begin')
@@ -173,6 +205,7 @@ class GrnAws:
         grn_pe_output_valid[self.threads - 1].assign(0)
         grn_pe_output_data[self.threads - 1].assign(0)
         grn_pe_output_available[self.threads - 1].assign(0)
+        grn_pe_output_almost_empty[self.threads - 1].assign(1)
 
         m.EmbeddedCode('\n//PE modules instantiation - Begin')
         grn_pe = self.grn_components.create_grn_pe(self.grn_content, self.bus_width)

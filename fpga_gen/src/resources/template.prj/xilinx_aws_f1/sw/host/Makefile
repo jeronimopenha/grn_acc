@@ -1,6 +1,5 @@
 
 GRN_CONF_FILE := "grn_input_file.csv"
-GRN_MEM_CONF_FILE := "grn_input_file_mem.csv"
 GRN_OUT_FILE := "grn_output_file.csv"
 
 TARGET := hw_emu
@@ -9,7 +8,7 @@ HOST_ARCH = x86
 
 LIB_GRN_FPGA=$(shell readlink -f ../lib/lib/)
 
-CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++14
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++11
 LDFLAGS += $(opencl_LDFLAGS)
 
 CXXFLAGS += -I$(shell readlink -f ./include) -I$(shell readlink -f ../lib/include/)
@@ -47,7 +46,7 @@ $(EXECUTABLE): check-xrt $(HOST_SRCS)
 
 .PHONY: sim	
 sim: host simconf emconfig
-	XCL_EMULATION_MODE=$(TARGET) LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(LIB_GRN_FPGA) $(EXECUTABLE) $(SIM_XCLBIN) $(KERNEL_NAME) $(GRN_CONF_FILE) $(GRN_MEM_CONF_FILE) $(GRN_OUT_FILE)
+	XCL_EMULATION_MODE=$(TARGET) LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(LIB_GRN_FPGA) $(EXECUTABLE) $(SIM_XCLBIN) $(KERNEL_NAME) $(GRN_CONF_FILE) $(GRN_OUT_FILE)
 
 .PHONY: run
 run: host

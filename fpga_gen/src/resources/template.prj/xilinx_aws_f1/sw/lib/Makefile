@@ -2,7 +2,7 @@ TARGET := hw_emu
 DEVICE := $(AWS_PLATFORM)
 HOST_ARCH = x86
 
-CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++14
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++11
 LDFLAGS += $(opencl_LDFLAGS)
 
 CXXFLAGS += -I$(shell readlink -f ./include)

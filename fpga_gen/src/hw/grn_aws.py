@@ -10,11 +10,9 @@ if not p in sys.path:
 
 class GrnAws:
 
-    def get(self, grn_content, pe_type, threads, total_eq_bits, bus_width):
+    def get(self, grn_content, threads, bus_width):
         self.grn_content = grn_content
-        self.pe_type = pe_type
         self.threads = threads
-        self.total_eq_bits = total_eq_bits
         self.bus_width = bus_width
         self.grn_components = GrnComponents()
         return self.__create_grn_aws()
@@ -34,7 +32,7 @@ class GrnAws:
         grn_aws_done_rd_data = m.Input('grn_aws_done_rd_data')
         grn_aws_done_wr_data = m.Input('grn_aws_done_wr_data')
 
-        grn_aws_request_read = m.OutputReg('grn_aws_request_read')
+        grn_aws_request_read = m.Output('grn_aws_request_read')
         grn_aws_read_data_valid = m.Input('grn_aws_read_data_valid')
         grn_aws_read_data = m.Input('grn_aws_read_data', self.bus_width)
 
@@ -49,9 +47,8 @@ class GrnAws:
 
         # grn pe instantiation regs and wires - Begin ------------------------------------------------------------
         m.EmbeddedCode('\n// grn pe instantiation regs and wires - Begin')
-        grn_pe_config_output_done = m.Wire('grn_pe_config_output_done', self.threads)
         grn_pe_config_output_valid = m.Wire('grn_pe_config_output_valid', self.threads)
-        grn_pe_config_output = m.Wire('grn_pe_config_output', self.bus_width, self.threads)
+        grn_pe_config_output = m.Wire('grn_pe_config_output', 8, self.threads)
         grn_pe_output_read_enable = m.Wire('grn_pe_output_read_enable', self.threads)
         grn_pe_output_valid = m.Wire('grn_pe_output_valid', self.threads)
         grn_pe_output_data = m.Wire('grn_pe_output_data', self.bus_width, self.threads)
@@ -62,13 +59,15 @@ class GrnAws:
 
         # Config wires and regs - Begin --------------------------------------------------------------------------------
         m.EmbeddedCode('\n//Config wires and regs - Begin')
+        pop_data = m.Reg('pop_data')
+        available_pop = m.Wire('available_pop')
+        data_out = m.Wire('data_out', 8)
+        config_valid = m.Reg('config_valid')
+        config_data = m.Reg('config_data', 8)
+
+        fsm_sd = m.Reg('fms_cs', 2)
         fsm_sd_idle = m.Localparam('fsm_sd_idle', 0, 2)
         fsm_sd_send_data = m.Localparam('fsm_sd_send_data', 1, 2)
-        fsm_sd_done = m.Localparam('fsm_sd_done', 2, 2)
-        fsm_sd = m.Reg('fms_cs', 2)
-        config_valid = m.Reg('config_valid')
-        config_data = m.Reg('config_data', self.bus_width)
-        config_done = m.Reg('config_done')
         flag = m.Reg('flag')
         m.EmbeddedCode('//Config wires and regs - End')
         # Config wires and regs - End ----------------------------------------------------------------------------------
@@ -77,42 +76,53 @@ class GrnAws:
         m.EmbeddedCode('\n//Data Reading - Begin')
         m.Always(Posedge(clk))(
             If(rst)(
-                grn_aws_request_read(0),
+                pop_data(0),
                 config_valid(0),
                 fsm_sd(fsm_sd_idle),
-                config_done(0),
                 flag(0)
             ).Elif(start)(
                 config_valid(0),
-                grn_aws_request_read(0),
+                pop_data(0),
                 flag(0),
                 Case(fsm_sd)(
                     When(fsm_sd_idle)(
-                        If(grn_aws_read_data_valid)(
-                            grn_aws_request_read(1),
+                        If(available_pop)(
+                            pop_data(1),
                             flag(1),
                             fsm_sd(fsm_sd_send_data)
-                        ).Elif(grn_aws_done_rd_data)(
-                            fsm_sd(fsm_sd_done)
                         )
                     ),
                     When(fsm_sd_send_data)(
-                        If(grn_aws_read_data_valid | flag)(
-                            config_data(grn_aws_read_data),
+                        If(available_pop | flag)(
+                            config_data(data_out),
                             config_valid(1),
-                            grn_aws_request_read(1),
-                        ).Elif(grn_aws_done_rd_data)(
-                            fsm_sd(fsm_sd_done)
+                            pop_data(1),
                         ).Else(
                             fsm_sd(fsm_sd_idle)
                         )
                     ),
-                    When(fsm_sd_done)(
-                        config_done(1)
-                    )
                 )
             )
         )
+
+        '''
+        # Data Reading - Begin -----------------------------------------------------------------------------------------
+        m.EmbeddedCode('\n//Data Reading - Begin')
+        m.Always(Posedge(clk))(
+            If(rst)(
+                pop_data(0),
+                config_valid(0),
+            ).Elif(start)(
+                config_valid(0),
+                pop_data(0),
+                If(available_pop)(
+                    config_data(data_out),
+                    config_valid(1),
+                    pop_data(1),
+                )
+            )
+        )
+        '''
         m.EmbeddedCode('//Data Reading - End')
         # Data Reading - End -------------------------------------------------------------------------------------------
 
@@ -151,6 +161,12 @@ class GrnAws:
         )
         m.EmbeddedCode('//Data Consumer - Begin')
         # Data Consumer - End ------------------------------------------------------------------------------------------
+        fetch_data = self.grn_components.create_fecth_data(self.bus_width, 8)
+        par = []
+        con = [('clk', clk), ('rst', rst), ('start', start), ('request_read', grn_aws_request_read),
+               ('data_valid', grn_aws_read_data_valid), ('read_data', grn_aws_read_data), ('pop_data', pop_data),
+               ('available_pop', available_pop), ('data_out', data_out)]
+        m.Instance(fetch_data, fetch_data.name, par, con)
 
         # PE modules instantiation - Begin -----------------------------------------------------------------------------
         m.EmbeddedCode('\n//Assigns to the last PE')
@@ -159,15 +175,14 @@ class GrnAws:
         grn_pe_output_available[self.threads - 1].assign(0)
 
         m.EmbeddedCode('\n//PE modules instantiation - Begin')
-        grn_pe = self.grn_components.create_grn_pe(self.pe_type, self.grn_content, self.total_eq_bits, self.bus_width)
+        grn_pe = self.grn_components.create_grn_pe(self.grn_content, self.bus_width)
 
         if self.threads < 1:
             raise ValueError("The threads value can't be lower than 1")
         for i in range(self.threads):
-            par = [('pe_id', grn_aws_pe_init_id + i)]
+            par = [('pe_id', grn_aws_pe_init_id + i), ('rr_wait', self.threads - 1 - i)]
             con = [('clk', clk), ('rst', rst)]
             if i == 0:
-                con.append(('config_input_done', config_done))
                 con.append(('config_input_valid', config_valid))
                 con.append(('config_input', config_data))
 
@@ -177,7 +192,6 @@ class GrnAws:
                 con.append(('pe_output_available', consume_rd_available))
                 con.append(('pe_output_almost_empty', consume_rd_almost_empty))
             else:
-                con.append(('config_input_done', grn_pe_config_output_done[i - 1]))
                 con.append(('config_input_valid', grn_pe_config_output_valid[i - 1]))
                 con.append(('config_input', grn_pe_config_output[i - 1]))
 
@@ -185,9 +199,8 @@ class GrnAws:
                 con.append(('pe_output_valid', grn_pe_output_valid[i - 1]))
                 con.append(('pe_output_data', grn_pe_output_data[i - 1]))
                 con.append(('pe_output_available', grn_pe_output_available[i - 1]))
-                con.append(('pe_output_almost_empty', grn_pe_output_almost_empty[i-1]))
+                con.append(('pe_output_almost_empty', grn_pe_output_almost_empty[i - 1]))
 
-            con.append(('config_output_done', grn_pe_config_output_done[i]))
             con.append(('config_output_valid', grn_pe_config_output_valid[i]))
             con.append(('config_output', grn_pe_config_output[i]))
 

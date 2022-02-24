@@ -5,18 +5,16 @@ from hw.utils import initialize_regs
 
 
 class GrnAccelerator:
-    def __init__(self, grn_content: Grn2dot, pe_type, blocks, threads, total_eq_bits, bus_width):
+    def __init__(self, grn_content: Grn2dot, blocks, threads, bus_width):
         # constants
         self.acc_num_in = blocks
         self.acc_num_out = blocks
-        self.pe_type = pe_type
 
         self.grn_content = grn_content
         self.nodes_qty = grn_content.get_num_nodes()
         self.blocks = blocks
         self.threads = threads
         self.bus_width = bus_width
-        self.total_eq_bits = total_eq_bits
 
         self.acc_data_in_width = bus_width
         self.acc_data_out_width = bus_width
@@ -65,7 +63,7 @@ class GrnAccelerator:
         )
         if self.blocks < 1:
             raise ValueError("The blocks value can't be lower than 1")
-        grn_aws = grn_aws.get(self.grn_content, self.pe_type, self.threads, self.total_eq_bits, self.bus_width)
+        grn_aws = grn_aws.get(self.grn_content, self.threads, self.bus_width)
         for i in range(self.blocks):
             par = [('grn_aws_pe_init_id', i * self.threads)]
             con = [

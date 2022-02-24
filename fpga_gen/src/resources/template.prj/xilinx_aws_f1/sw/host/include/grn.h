@@ -22,7 +22,6 @@ private:
     std::string m_xclbin;
     std::string m_kernel_name;
     std::string m_input_file;
-    std::string m_mem_cfg_file;
     std::string m_output_file;
     AccFpga * m_acc_fpga;
     unsigned char ** m_input_data;
@@ -32,7 +31,7 @@ private:
     void readInputFile();
 
 public:
-    Grn(std::string xclbin, std::string kernel_name,std::string input_file,std::string mem_cfg_file, std::string output_file);
+    Grn(std::string xclbin, std::string kernel_name,std::string input_file, std::string output_file);
     ~Grn();
     void run();
     void savePerfReport();

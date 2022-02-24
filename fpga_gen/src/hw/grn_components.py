@@ -162,12 +162,8 @@ class GrnComponents:
         self.cache[name] = m
         return m
 
-    def create_grn_core(self, grn_content: Grn2dot, pe_type, total_eq_bits, bus_width):
-        name = ""
-        if pe_type == 0:
-            name = 'grn_naive_core'
-        elif pe_type == 1:
-            name = 'grn_mem_core'
+    def create_grn_core(self, grn_content: Grn2dot, bus_width):
+        name = 'grn_naive_core'
         if name in self.cache.keys():
             return self.cache[name]
         m = Module(name)
@@ -186,10 +182,6 @@ class GrnComponents:
         # searched
         initial_state = m.Input('initial_state', grn_content.get_num_nodes())
         final_state = m.Input('final_state', grn_content.get_num_nodes())
-        if pe_type == 1:
-            # The grn mem core configuration consists in two buses with the initial state and the final state to be
-            # searched and the content of a 1 bit memory for each equation
-            eq_conf = m.Input('eq_conf', total_eq_bits)
         # Configuration Inputs - End ----------------------------------------------------------------------------------
 
         # Output data Control interface - Begin -----------------------------------------------------------------------
@@ -201,14 +193,9 @@ class GrnComponents:
         output_almost_empty = m.Output('output_almost_empty')
         # Output data Control interface - End -------------------------------------------------------------------------
 
-        if pe_type == 0:
-            m.EmbeddedCode(
-                "// The grn core naive configuration consists in two buses with the initial state and the final ")
-            m.EmbeddedCode("// state to be searched.")
-        elif pe_type == 1:
-            m.EmbeddedCode(
-                "// The grn mem core configuration consists in two buses with the initial state and the final state to be")
-            m.EmbeddedCode("// searched and the content of a 1 bit memory for each equation.")
+        m.EmbeddedCode(
+            "// The grn core naive configuration consists in two buses with the initial state and the final ")
+        m.EmbeddedCode("// state to be searched.")
 
         # Fifo wires and regs
         m.EmbeddedCode("//Fifo wires and regs")
@@ -235,6 +222,8 @@ class GrnComponents:
         qty_data = data_write_width // bus_width
         data_to_write = m.Reg('data_to_write', data_write_width)
         write_counter = m.Reg('write_counter', ceil(log2(qty_data)) + 1)
+        perf_counter = m.Reg('perf_counter', 32)
+        perf_flag = m.Reg('perf_flag')
         m.EmbeddedCode("")
 
         # State machine to control the grn algorithm execution
@@ -252,6 +241,8 @@ class GrnComponents:
         m.Always(Posedge(clk))(
             If(rst)(
                 fifo_write_enable(0),
+                perf_counter(0),
+                perf_flag(0),
                 done(0),
                 fsm_naive(fsm_naive_set),
             ).Elif(start)(
@@ -324,8 +315,10 @@ class GrnComponents:
                         If(~fifo_almost_full)(
                             write_counter.inc(),
                             fifo_write_enable(1),
-                            data_to_write(Cat(Int(0, 32, 2), data_to_write[32:data_to_write.width])),
+                            data_to_write(Cat(Int(0, bus_width, 2), data_to_write[bus_width:data_to_write.width])),
                             fifo_input_data(data_to_write[0:bus_width]),
+                        ).Else(
+                            perf_counter.inc()
                         )
                     ),
                     When(fsm_naive_verify)(
@@ -337,7 +330,28 @@ class GrnComponents:
                         )
                     ),
                     When(fsm_naive_done)(
-                        done(fifo_empty)
+                        If(perf_flag)(
+                            done(fifo_empty)
+                        ).Else(
+                            data_to_write(
+                                Cat(
+                                    Int(0, (bits_to_add), 2),
+                                    Int(0, grn_content.get_num_nodes(), 2),
+                                    Cat(Int(1, 1, 2), core_id[0:core_id.width - 1]),
+                                    perf_counter
+                                )
+                                if bits_to_add > 0
+                                else
+                                Cat(
+                                    Int(0, grn_content.get_num_nodes(), 2),
+                                    Cat(Int(1, 1, 2), core_id[0:core_id.width - 1]),
+                                    perf_counter
+                                )
+                            ),
+                            fsm_naive(fsm_naive_write),
+                            write_counter(0),
+                            perf_flag(1),
+                        )
                     )
                 )
             )
@@ -355,87 +369,50 @@ class GrnComponents:
         par = [('FIFO_WIDTH', bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
         m.Instance(fifo, 'grn_naive_core_output_fifo', par, con)
 
-        if pe_type == 0:
-            # Here are the GRN equations to be used in the core execution are created
-            m.EmbeddedCode("\n// Here are the GRN equations to be used in the core execution are created")
-            equations = grn_content.get_equations_dict()
-            nodes = grn_content.get_nodes_vector()
-            nodes_assign_dict = {}
-            nodes_assign_dict_counter = 0
-            assign_string = ""
-            for node in equations:
-                equations[node] = equations[node].replace('||', ' || ')
-                equations[node] = equations[node].replace('&&', ' && ')
-                equations[node] = equations[node].replace('!', ' ! ')
-                equations[node] = equations[node].replace('(', ' ( ')
-                equations[node] = equations[node].replace(')', ' ) ')
-                equations[node] = " " + equations[node] + " "
-                for n in nodes:
-                    n = " " + n + " "
-                    if not n in nodes_assign_dict:
-                        nodes_assign_dict[n] = str(nodes_assign_dict_counter)
-                        nodes_assign_dict_counter = nodes_assign_dict_counter + 1
-                    if n in equations[node]:
-                        equations[node] = equations[node].replace(n, 'actual_state_s1[' + nodes_assign_dict[n] + ']')
-                assign_string = assign_string + "assign next_state_s1[" + nodes_assign_dict[" " + node + " "] + "] = " + \
-                                equations[node] + ";\n"
-
-            # For S1 pointer
-            m.EmbeddedCode("// For S1 pointer")
-            m.EmbeddedCode(assign_string)
-            # For S2 pointer
-            m.EmbeddedCode("// For S2 pointer")
-            assign_string = assign_string.replace("actual_state_s1", "actual_state_s2")
-            assign_string = assign_string.replace("next_state_s1", "next_state_s2")
-            m.EmbeddedCode(assign_string)
-        elif pe_type == 1:
-            # Here are the GRN equations to be used in the core execution are created
-            m.EmbeddedCode("\n// Here are the GRN equations to be used in the core execution are created")
-            grn_mem_spec = grn_content.get_grn_mem_specifications()
-            eq_wires = []
-            for node in grn_content.get_nodes_vector():
-                for g in grn_mem_spec:
-                    if g[0] == node:
-                        eq_wires.append(m.Wire("eq_" + node.replace(' ', ''), pow(2, len(g[2]))))
-                        break
-            # assign each bus in the correct place of configuration memory
-            last_idx = 0
-            for eq in eq_wires:
-                eq.assign(eq_conf[last_idx:last_idx + eq.width])
-                last_idx = last_idx + eq.width
-
-            # Assigns to define each bit is used on each equation memory
-            m.EmbeddedCode("\n// Assigns to define each bit is used on each equation memory")
-            for i in range(next_state_s1.width):
-                assign_string = 'assign ' + next_state_s1.name + '[' + str(i) + '] = ' + eq_wires[i].name + '[{'
-                for idx in grn_mem_spec[i][2]:
-                    assign_string = assign_string + 'actual_state_s1[' + str(idx) + '],'
-                assign_string = assign_string[0:(len(assign_string) - 1)]
-                assign_string = assign_string + '}];'
-                m.EmbeddedCode(assign_string)
-                m.EmbeddedCode(assign_string.replace('_s1', '_s2'))
-
-            # Output data fifo instantiation
-            m.EmbeddedCode("\n//Output data fifo instantiation")
+        # Here are the GRN equations to be used in the core execution are created
+        m.EmbeddedCode("\n// Here are the GRN equations to be used in the core execution are created")
+        equations = grn_content.get_equations_dict()
+        nodes = grn_content.get_nodes_vector()
+        nodes_assign_dict = {}
+        nodes_assign_dict_counter = 0
+        assign_string = ""
+        for node in equations:
+            equations[node] = equations[node].replace('||', ' || ')
+            equations[node] = equations[node].replace('&&', ' && ')
+            equations[node] = equations[node].replace('!', ' ! ')
+            equations[node] = equations[node].replace('(', ' ( ')
+            equations[node] = equations[node].replace(')', ' ) ')
+            equations[node] = " " + equations[node] + " "
+            for n in nodes:
+                n = " " + n + " "
+                if not n in nodes_assign_dict:
+                    nodes_assign_dict[n] = str(nodes_assign_dict_counter)
+                    nodes_assign_dict_counter = nodes_assign_dict_counter + 1
+                if n in equations[node]:
+                    equations[node] = equations[node].replace(n, 'actual_state_s1[' + nodes_assign_dict[n] + ']')
+            assign_string = assign_string + "assign next_state_s1[" + nodes_assign_dict[" " + node + " "] + "] = " + \
+                            equations[node] + ";\n"
+        # For S1 pointer
+        m.EmbeddedCode("// For S1 pointer")
+        m.EmbeddedCode(assign_string)
+        # For S2 pointer
+        m.EmbeddedCode("// For S2 pointer")
+        assign_string = assign_string.replace("actual_state_s1", "actual_state_s2")
+        assign_string = assign_string.replace("next_state_s1", "next_state_s2")
+        m.EmbeddedCode(assign_string)
 
         initialize_regs(m)
         self.cache[name] = m
         return m
 
-    def create_grn_pe(self, pe_type, grn_content, total_eq_bits, bus_width):
-        if pe_type not in [0, 1]:
-            raise ValueError("The pe_type needs to be 0 or 1")
-        name = ""
-        if pe_type == 0:
-            name = 'grn_naive_pe'
-        elif pe_type == 1:
-            name = 'grn_mem_pe'
-
+    def create_grn_pe(self, grn_content, bus_width):
+        name = 'grn_naive_pe'
         if name in self.cache.keys():
             return self.cache[name]
         m = Module(name)
 
         pe_id = m.Parameter('pe_id', 0, 16)
+        rr_wait = m.Parameter('rr_wait', 0, 8)
 
         # Basic Inputs - Begin ----------------------------------------------------------------------------------------
         clk = m.Input('clk')
@@ -443,12 +420,10 @@ class GrnComponents:
         # Basic Input - End -------------------------------------------------------------------------------------------
 
         # PE configuration signals
-        config_input_done = m.Input('config_input_done')
         config_input_valid = m.Input('config_input_valid')
-        config_input = m.Input('config_input', bus_width)
-        config_output_done = m.OutputReg('config_output_done')
+        config_input = m.Input('config_input', 8)
         config_output_valid = m.OutputReg('config_output_valid')
-        config_output = m.OutputReg('config_output', bus_width)
+        config_output = m.OutputReg('config_output', 8)
         # --------------------------------------------------------------------------------------------------------------
 
         # bypass data Control interface - Begin -----------------------------------------------------------------------
@@ -472,15 +447,12 @@ class GrnComponents:
         # configuration wires and regs begin ---------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration wires and regs - begin')
         is_configured = m.Reg('is_configured')
-        pe_init_conf = m.Wire('pe_init_conf', ceil(grn_content.get_num_nodes() / bus_width) * bus_width)
-        pe_end_conf = m.Wire('pe_end_conf', ceil(grn_content.get_num_nodes() / bus_width) * bus_width)
+        pe_init_conf = m.Wire('pe_init_conf', ceil(grn_content.get_num_nodes() / 8) * 8)
+        pe_end_conf = m.Wire('pe_end_conf', ceil(grn_content.get_num_nodes() / 8) * 8)
         pe_data_conf = m.Reg('pe_data_conf', pe_init_conf.width + pe_end_conf.width)
         pe_init_conf.assign(pe_data_conf[0:pe_init_conf.width])
         pe_end_conf.assign(pe_data_conf[pe_init_conf.width:pe_init_conf.width + pe_end_conf.width])
-        config_counter = m.Reg('config_counter', ceil(log2((pe_init_conf.width + pe_end_conf.width) // bus_width)) + 1)
-        if pe_type == 1:
-            pe_eq_conf = m.Reg('pe_eq_conf', total_eq_bits)
-            config_eq_counter = m.Reg('config_eq_counter', ceil(log2(total_eq_bits / bus_width)) + 1)
+        config_counter = m.Reg('config_counter', ceil(log2((pe_init_conf.width + pe_end_conf.width) // 8)) + 1)
         m.EmbeddedCode('//configuration wires and regs - end\n')
         # configuration wires and regs end -----------------------------------------------------------------------------
         # regs and wires to control the grn core
@@ -492,8 +464,6 @@ class GrnComponents:
         grn_done = m.Wire('grn_done')
         grn_initial_state = m.Wire('grn_initial_state', grn_content.get_num_nodes())
         grn_final_state = m.Wire('grn_final_state', grn_content.get_num_nodes())
-        if pe_type == 1:
-            grn_eq_conf = m.Wire('grn_eq_conf', total_eq_bits)
         grn_output_read_enable = m.Reg('grn_output_read_enable')
         grn_output_valid = m.Wire('grn_output_valid')
         grn_output_data = m.Wire('grn_output_data', bus_width)
@@ -511,6 +481,7 @@ class GrnComponents:
         qty_data_write = data_write_width // bus_width
         wr_counter = m.Reg('wr_counter', ceil(log2(qty_data_write)) + 1)
         rd_counter = m.Reg('rd_counter', ceil(log2(qty_data_write)) + 1)
+        rr_wait_counter = m.Reg('rr_wait_counter', rr_wait.width + 1)
 
         # Fifo out wires and regs
         m.EmbeddedCode("\n//Fifo out wires and regs")
@@ -522,76 +493,28 @@ class GrnComponents:
 
         # configuration sector -----------------------------------------------------------------------------------------
         m.EmbeddedCode('\n//configuration sector - begin')
-        if pe_type == 0:
-            # PE configuration machine
-            m.Always(Posedge(clk))(
+
+        # PE configuration machine
+        m.Always(Posedge(clk))(
+            If(rst)(
+                is_configured(0),
                 config_output_valid(0),
-                config_output_done(config_input_done),
-                If(rst)(
-                    is_configured(0),
-                    config_counter(0)
-                ).Else(
+                config_counter(0)
+            ).Else(
+                If(~is_configured)(
                     If(config_input_valid)(
                         config_counter.inc(),
-                        If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // bus_width) - 1)(
+                        If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // 8) - 1)(
                             is_configured(1)
                         ),
-                        If(~is_configured)(
-                            pe_data_conf(Cat(config_input, pe_data_conf[bus_width:pe_data_conf.width]))
-                        ).Else(
-                            config_output_valid(config_input_valid),
-                            config_output(config_input),
-                        )
-                    )
-                ),
-            )
-        elif pe_type == 1:
-            fsm_config = m.Reg('fsm_config', 2)
-            fsm_config_mem_config = m.Localparam('fsm_config_mem_config', 0)
-            fsm_config_other = m.Localparam('fsm_config_other', 1)
-            fsm_config_done = m.Localparam('fsm_config_done', 2)
-
-            # PE configuration machine
-            m.Always(Posedge(clk))(
-                config_output_valid(0),
-                config_output(config_input),
-                config_output_done(config_input_done),
-                If(rst)(
-                    is_configured(0),
-                    config_counter(0),
-                    config_eq_counter(0),
-                    fsm_config(fsm_config_mem_config),
-                ).Else(
-                    Case(fsm_config)(
-                        When(fsm_config_mem_config)(
-                            If(config_input_valid)(
-                                config_eq_counter.inc(),
-                                If(config_eq_counter == (pe_eq_conf.width // bus_width) - 1)(
-                                    fsm_config(fsm_config_other),
-                                ),
-                                pe_eq_conf(Cat(config_input, pe_eq_conf[bus_width:pe_eq_conf.width]))
-                                if (pe_eq_conf.width // bus_width) > 1
-                                else
-                                pe_eq_conf(config_input),
-                                config_output_valid(config_input_valid),
-                            ),
-                        ),
-                        When(fsm_config_other)(
-                            If(config_input_valid)(
-                                config_counter.inc(),
-                                If(config_counter == ((pe_init_conf.width + pe_end_conf.width) // bus_width) - 1)(
-                                    is_configured(1),
-                                    fsm_config(fsm_config_done),
-                                ),
-                                pe_data_conf(Cat(config_input, pe_data_conf[bus_width:pe_data_conf.width]))
-                            ),
-                        ),
-                        When(fsm_config_done)(
-                            config_output_valid(config_input_valid),
-                        ),
+                        pe_data_conf(Cat(config_input, pe_data_conf[8:pe_data_conf.width]))
                     ),
+                ).Else(
+                    config_output_valid(config_input_valid),
+                    config_output(config_input),
                 ),
-            )
+            ),
+        )
         m.EmbeddedCode('//configuration sector - end')
         # configuration sector - end -----------------------------------------------------------------------------------
 
@@ -611,12 +534,13 @@ class GrnComponents:
                 fifo_out_write_enable(0),
                 Case(fsm_pe_jo)(
                     When(fsm_pe_jo_look_grn)(
-                        fsm_pe_jo(fsm_pe_jo_look_pe),
                         If(grn_output_available)(
                             wr_counter(0),
                             rd_counter(1),
                             grn_output_read_enable(1),
                             fsm_pe_jo(fsm_pe_jo_rd_grn),
+                        ).Else(
+                            fsm_pe_jo(fsm_pe_jo_look_pe),
                         )
                     ),
                     When(fsm_pe_jo_rd_grn)(
@@ -638,18 +562,20 @@ class GrnComponents:
                         ),
                     ),
                     When(fsm_pe_jo_look_pe)(
-                        fsm_pe_jo(fsm_pe_jo_look_grn),
                         If(pe_bypass_available)(
                             wr_counter(0),
                             rd_counter(1),
                             flag_read(0),
                             pe_bypass_read_enable(1),
                             If(~grn_done)(
+                                rr_wait_counter(0),
                                 fsm_pe_jo(fsm_pe_jo_rd_pe),
                             ).Else(
                                 fsm_pe_jo(fsm_pe_jo_only_pe),
                             ),
 
+                        ).Else(
+                            fsm_pe_jo(fsm_pe_jo_look_grn),
                         ),
                     ),
                     When(fsm_pe_jo_rd_pe)(
@@ -668,12 +594,21 @@ class GrnComponents:
                             ),
                         ),
                         If(pe_bypass_valid)(
-                            If(wr_counter == qty_data_write - 1)(
-                                fsm_pe_jo(fsm_pe_jo_look_grn)
-                            ),
                             fifo_out_input_data(pe_bypass_data),
                             fifo_out_write_enable(1),
-                            wr_counter.inc(),
+                            If(wr_counter == qty_data_write - 1)(
+                                If(rr_wait_counter == rr_wait - 1)(
+                                    fsm_pe_jo(fsm_pe_jo_look_grn),
+                                ).Elif(pe_bypass_available)(
+                                    rr_wait_counter.inc(),
+                                ).Else(
+                                    fsm_pe_jo(fsm_pe_jo_look_grn),
+                                ),
+                                wr_counter(0),
+                                rd_counter(0),
+                            ).Else(
+                                wr_counter.inc(),
+                            ),
                         ),
                     ),
                     When(fsm_pe_jo_only_pe)(
@@ -701,17 +636,14 @@ class GrnComponents:
         m.EmbeddedCode("// Grn core instantiation")
         grn_initial_state.assign(pe_init_conf[0:grn_initial_state.width])
         grn_final_state.assign(pe_end_conf[0:grn_final_state.width])
-        if pe_type == 1:
-            grn_eq_conf.assign(pe_eq_conf[0:grn_eq_conf.width])
         par = [('core_id', pe_id)]
         con = [('clk', clk), ('rst', rst), ('start', start_grn), ('done', grn_done),
                ('initial_state', grn_initial_state), ('final_state', grn_final_state),
                ('output_read_enable', grn_output_read_enable), ('output_valid', grn_output_valid),
                ('output_data', grn_output_data), ('output_available', grn_output_available),
                ('output_almost_empty', grn_output_almost_empty)]
-        if pe_type == 1:
-            con.append(('eq_conf', grn_eq_conf))
-        grn = self.create_grn_core(grn_content, pe_type, total_eq_bits, bus_width)
+
+        grn = self.create_grn_core(grn_content, bus_width)
         m.Instance(grn, grn.name, par, con)
 
         pe_output_available.assign(~fifo_out_empty)
@@ -725,5 +657,115 @@ class GrnComponents:
         m.Instance(fifo, 'pe_naive_fifo_out', par, con)
 
         initialize_regs(m)
+        self.cache[name] = m
+        return m
+
+    def create_fecth_data(self, input_data_width, output_data_width):
+        name = 'fecth_data_%d_%d' % (input_data_width, output_data_width)
+        if name in self.cache.keys():
+            return self.cache[name]
+        m = Module(name)
+
+        clk = m.Input('clk')
+        start = m.Input('start')
+        rst = m.Input('rst')
+
+        request_read = m.OutputReg('request_read')
+        data_valid = m.Input('data_valid')
+        read_data = m.Input('read_data', input_data_width)
+
+        pop_data = m.Input('pop_data')
+        available_pop = m.OutputReg('available_pop')
+        data_out = m.Output('data_out', output_data_width)
+
+        NUM = input_data_width // output_data_width
+
+        fsm_read = m.Reg('fsm_read', 1)
+        fsm_control = m.Reg('fsm_control', 1)
+        data = m.Reg('data', input_data_width)
+        buffer = m.Reg('buffer', input_data_width)
+        count = m.Reg('count', NUM)
+        has_buffer = m.Reg('has_buffer')
+        buffer_read = m.Reg('buffer_read')
+        en = m.Reg('en')
+
+        m.EmbeddedCode('')
+        data_out.assign(data[0:output_data_width])
+
+        m.Always(Posedge(clk))(
+            If(rst)(
+                en(Int(0, 1, 2))
+            ).Else(
+                en(Mux(en, en, start))
+            )
+        )
+
+        m.Always(Posedge(clk))(
+            If(rst)(
+                fsm_read(0),
+                request_read(0),
+                has_buffer(0)
+            ).Else(
+                request_read(0),
+                Case(fsm_read)(
+                    When(0)(
+                        If(en & data_valid)(
+                            buffer(read_data),
+                            request_read(1),
+                            has_buffer(1),
+                            fsm_read(1)
+                        )
+                    ),
+                    When(1)(
+                        If(buffer_read)(
+                            has_buffer(0),
+                            fsm_read(0)
+                        )
+                    )
+                )
+            )
+        )
+
+        m.Always(Posedge(clk))(
+            If(rst)(
+                fsm_control(0),
+                available_pop(0),
+                count(0),
+                buffer_read(0)
+            ).Else(
+                buffer_read(0),
+                Case(fsm_control)(
+                    When(0)(
+                        If(has_buffer)(
+                            data(buffer),
+                            count(1),
+                            buffer_read(1),
+                            available_pop(1),
+                            fsm_control(1)
+                        )
+                    ),
+                    When(1)(
+                        If(pop_data & ~count[NUM - 1])(
+                            count(count << 1),
+                            data(data[output_data_width:])
+                        ),
+                        If(pop_data & count[NUM - 1] & has_buffer)(
+                            count(1),
+                            data(buffer),
+                            buffer_read(1)
+                        ),
+                        If(count[NUM - 1] & pop_data & ~has_buffer)(
+                            count(count << 1),
+                            data(data[output_data_width:]),
+                            available_pop(0),
+                            fsm_control(0)
+                        )
+                    )
+                )
+            )
+        )
+
+        initialize_regs(m)
+
         self.cache[name] = m
         return m

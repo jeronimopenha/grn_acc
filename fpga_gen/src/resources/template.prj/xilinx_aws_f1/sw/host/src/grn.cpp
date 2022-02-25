@@ -32,6 +32,7 @@ Grn::~Grn(){
     delete m_acc_fpga;
 }
 void Grn::readInputFile(){
+    printf("\nGRN reading file");
     std::string line;
     std::string str_conf;
     std::ifstream conffile(m_input_file);
@@ -53,11 +54,11 @@ void Grn::readInputFile(){
             m_input_size[i] = (unsigned long) total_input_size / NUM_CHANNELS;
             m_output_size[i] = (unsigned long) total_output_size / NUM_CHANNELS;
         }
-        
-        
+
+
         conffile.clear();
         conffile.seekg(0);
-
+        printf("\nGRN allocating memory");
         for (int j = 0; j < NUM_CHANNELS; ++j) {
             if(m_input_size[j] > 0){
                 m_acc_fpga->createInputQueue(j,sizeof(grn_conf_t)*m_input_size[j]);
@@ -68,7 +69,8 @@ void Grn::readInputFile(){
                 m_output_data[j] = (grn_data_out_t*) m_acc_fpga->getOutputQueue(j);
             }
         }
-         
+
+        printf("\nGRN filling the input buffers");
         for (int j = 0; j < NUM_CHANNELS; ++j) {
             grn_conf_t * grn_conf_ptr;
             grn_conf_ptr = (grn_conf_t *)m_input_data[j];
@@ -96,9 +98,11 @@ void Grn::readInputFile(){
 void Grn::run(){
     m_acc_fpga->fpgaInit(m_xclbin, m_kernel_name);
     readInputFile();
+    printf("\nGRN executing");
     m_acc_fpga->execute();
 }
 void Grn::savePerfReport(){
+  printf("\nGRN generating performance report file");
   std::ofstream reportfile("performance_report.csv");
   reportfile << "Name,Initialization(ms),Size input data(bytes),Data copy HtoD(ms),Size output data(bytes),";
   reportfile << "Data copy DtoH(ms),Execution time(ms),Total execution time(ms)" << std::endl;
@@ -113,6 +117,7 @@ void Grn::savePerfReport(){
   reportfile.close();
 }
 void Grn::saveGrnOutput(){
+    printf("\nGRN saving data out file");
     std::ofstream output_data_file(m_output_file);
     output_data_file << "b_state" << "," << "core_id" << "," << "period" << "," << "transient" << std::endl;
     for (int k = 0; k < NUM_CHANNELS; ++k) {

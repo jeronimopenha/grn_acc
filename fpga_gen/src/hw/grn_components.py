@@ -309,14 +309,14 @@ class GrnComponents:
                         write_counter(0),
                     ),
                     When(fsm_naive_write)(
-                        If(write_counter == int(qty_data - 1))(
-                            fsm_naive(fsm_naive_verify)
-                        ),
                         If(~fifo_almost_full)(
                             write_counter.inc(),
                             fifo_write_enable(1),
                             data_to_write(Cat(Int(0, bus_width, 2), data_to_write[bus_width:data_to_write.width])),
                             fifo_input_data(data_to_write[0:bus_width]),
+                            If(write_counter == int(qty_data - 1))(
+                                fsm_naive(fsm_naive_verify)
+                            ),
                         ).Else(
                             perf_counter.inc()
                         )

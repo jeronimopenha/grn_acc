@@ -427,7 +427,7 @@ class AccAXIInterface:
         C_M_AXI_DATA_WIDTH = m.Parameter('C_M_AXI_DATA_WIDTH', self.acc.axi_bus_data_width)
         C_XFER_SIZE_WIDTH = m.Parameter('C_XFER_SIZE_WIDTH', C_M_AXI_ADDR_WIDTH)
         C_MAX_OUTSTANDING = m.Parameter('C_MAX_OUTSTANDING', 16)
-        C_INCLUDE_DATA_FIFO = m.Parameter('C_INCLUDE_DATA_FIFO', 1)
+        C_INCLUDE_DATA_FIFO = m.Parameter('C_INCLUDE_DATA_FIFO', 0)
 
         aclk = m.Input('aclk')
         areset = m.Input('areset')

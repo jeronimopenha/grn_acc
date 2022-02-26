@@ -132,12 +132,31 @@ class GrnAws:
         consume_rd_almost_empty = m.Wire('consume_rd_almost_empty')
         consume_rd_valid = m.Wire('consume_rd_valid')
         consume_rd_data = m.Wire('consume_rd_data', self.bus_width)
-        fsm_consume = m.Reg('fsm_consume',2)
-        fsm_consume_consume = m.Reg('fsm_consume_consume',0)
-        fsm_consume_going_stall = m.Localparam('fsm_consume_going_stall',1)
-        fsm_consume_stalled = m.Localparam('fsm_consume_stalled',2)
+        fsm_consume = m.Reg('fsm_consume', 2)
+        fsm_consume_consume = m.Localparam('fsm_consume_consume', 0)
+        fsm_consume_going_stall = m.Localparam('fsm_consume_going_stall', 1)
+        fsm_consume_stalled = m.Localparam('fsm_consume_stalled', 2)
         flag_read = m.Reg('flag_read')
         flag_buffer = m.Reg('flag_buffer')
+
+        data_read_counter = m.Reg("data_read_counter", 32)
+        data_write_counter = m.Reg("data_write_counter", 32)
+
+        m.Always(Posedge(clk))(
+            If(rst)(
+                data_write_counter(0)
+            ).Elif(grn_aws_request_write)(
+                data_write_counter.inc(),
+            ),
+        )
+
+        m.Always(Posedge(clk))(
+            If(rst)(
+                data_read_counter(0)
+            ).Elif(consume_rd_valid)(
+                data_read_counter.inc(),
+            ),
+        )
 
         m.Always(Posedge(clk))(
             If(rst)(

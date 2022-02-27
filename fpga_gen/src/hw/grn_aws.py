@@ -64,7 +64,7 @@ class GrnAws:
         config_valid = m.Reg('config_valid')
         config_data = m.Reg('config_data', 8)
 
-        fsm_sd = m.Reg('fms_cs', 2)
+        fsm_sd = m.Reg('fms_sd', 2)
         fsm_sd_idle = m.Localparam('fsm_sd_idle', 0, 2)
         fsm_sd_send_data = m.Localparam('fsm_sd_send_data', 1, 2)
         flag = m.Reg('flag')

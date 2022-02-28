@@ -36,6 +36,7 @@ public:
     void run();
     void savePerfReport();
     void saveGrnOutput();
+    void cleanup();
 };
 
 bool myCmp(std::string a, std::string b);

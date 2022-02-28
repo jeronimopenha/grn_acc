@@ -17,6 +17,7 @@ int main(int argc, char *argv[]){
     grn.run();
     grn.saveGrnOutput();
     grn.savePerfReport();
+    grn.cleanup();
 
     return 0;
 }

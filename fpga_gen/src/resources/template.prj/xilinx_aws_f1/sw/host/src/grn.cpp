@@ -116,6 +116,15 @@ void Grn::savePerfReport(){
   reportfile << m_acc_fpga->getTotalTime() << std::endl;
   reportfile.close();
 }
+
+void Grn::cleanup(){
+    m_acc_fpga->cleanup();
+    //free(m_main_data);
+    //free(m_clusters_old);
+    //free(m_output_data);
+    //return 0;
+}
+
 void Grn::saveGrnOutput(){
     printf("\nGRN saving data out file");
     std::ofstream output_data_file(m_output_file);

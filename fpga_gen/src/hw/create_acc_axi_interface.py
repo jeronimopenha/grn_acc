@@ -239,6 +239,7 @@ class AccAXIInterface:
                    ('m_axis_tlast', rd_tlast['rd_tlast%d' % i]),
                    ('m_axis_tdata', rd_tdata['rd_tdata%d' % i])
                    ]
+            m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
             m.Instance(axi_reader, 'axi_reader_%d' % i, param, con)
 
         for i in range(num_m_axis):
@@ -272,6 +273,7 @@ class AccAXIInterface:
                 ('s_axis_tready', wr_tready['wr_tready%d' % i]),
                 ('s_axis_tdata', wr_tdata['wr_tdata%d' % i])
             ]
+            m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
             m.Instance(axi_writer, 'axi_writer_%d' % i, param, con)
 
         param = []
@@ -289,7 +291,7 @@ class AccAXIInterface:
             ('acc_user_write_data', acc_user_write_data),
             ('acc_user_done', acc_user_done)
         ]
-
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(self.acc.get(), 'acc', param, con)
 
         initialize_regs(m, {'ap_idle_r': Int(1, 1, 2), 'areset': Int(1, 1, 2), 'reset': Int(1, 1, 2),
@@ -394,7 +396,7 @@ class AccAXIInterface:
         for sin, sout in zip(iin, out):
             con.append((sin.name, sin))
             con.append((sout.name, sout))
-
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(control_s_axi, 'control_s_axi_inst', params, con)
 
         app = self.create_app_top()
@@ -409,7 +411,7 @@ class AccAXIInterface:
             con.append((sout.name, sout))
 
         con += [(sname, s) for sname, s in m_axis_signals.items()]
-
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(app, 'app_inst', params, con)
 
         initialize_regs(m, {'areset': Int(1, 1, 2)})

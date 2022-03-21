@@ -217,6 +217,7 @@ class GrnAws:
         con = [('clk', clk), ('rst', rst), ('start', start), ('request_read', grn_aws_request_read),
                ('data_valid', grn_aws_read_data_valid), ('read_data', grn_aws_read_data), ('pop_data', pop_data),
                ('available_pop', available_pop), ('data_out', data_out)]
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(fetch_data, fetch_data.name, par, con)
 
         # PE modules instantiation - Begin -----------------------------------------------------------------------------
@@ -261,7 +262,7 @@ class GrnAws:
             con.append(('pe_bypass_data', grn_pe_output_data[i]))
             con.append(('pe_bypass_available', grn_pe_output_available[i]))
             con.append(('pe_bypass_almost_empty', grn_pe_output_almost_empty[i]))
-
+            m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
             m.Instance(grn_pe, grn_pe.name + "_" + str(i), par, con)
 
         m.EmbeddedCode('//PE modules instantiation - End')

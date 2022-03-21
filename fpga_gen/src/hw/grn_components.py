@@ -367,6 +367,7 @@ class GrnComponents:
                ('output_read_enable', output_read_enable), ('output_valid', output_valid), ('output_data', output_data),
                ('empty', fifo_empty), ('almostempty', output_almost_empty), ('almostfull', fifo_almost_full)]
         par = [('FIFO_WIDTH', bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data)))]
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(fifo, 'grn_naive_core_output_fifo', par, con)
 
         # Here are the GRN equations to be used in the core execution are created
@@ -644,6 +645,7 @@ class GrnComponents:
                ('output_almost_empty', grn_output_almost_empty)]
 
         grn = self.create_grn_core(grn_content, bus_width)
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(grn, grn.name, par, con)
 
         pe_output_available.assign(~fifo_out_empty)
@@ -654,6 +656,7 @@ class GrnComponents:
                ('output_data', pe_output_data), ('empty', fifo_out_empty),
                ('almostempty', pe_output_almost_empty), ('almostfull', fifo_out_almost_full)]
         par = [('FIFO_WIDTH', bus_width), ('FIFO_DEPTH_BITS', ceil(log2(8 * qty_data_write)))]
+        m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
         m.Instance(fifo, 'pe_naive_fifo_out', par, con)
 
         initialize_regs(m)

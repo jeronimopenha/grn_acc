@@ -80,6 +80,7 @@ class GrnAccelerator:
                 ('grn_aws_write_data',
                  acc_user_write_data[i * self.acc_data_out_width:(i + 1) * self.acc_data_out_width]),
                 ('grn_aws_done', grn_aws_done[i])]
+            m.EmbeddedCode("(* keep_hierarchy = \"yes\" *)")
             m.Instance(grn_aws, grn_aws.name + "_" + str(i), par, con)
 
         initialize_regs(m)
